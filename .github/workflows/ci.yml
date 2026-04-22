@@ -37,3 +37,8 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://dummy.local
           NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy
+
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://dummy.local
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy
