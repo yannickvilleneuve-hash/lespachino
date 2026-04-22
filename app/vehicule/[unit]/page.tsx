@@ -1,0 +1,93 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { fetchPublicListingByUnit } from "@/lib/listings/public";
+import AppHeader from "@/app/app-header";
+import Gallery from "./gallery";
+import LeadForm from "./lead-form";
+
+export const dynamic = "force-dynamic";
+
+const currencyFmt = new Intl.NumberFormat("fr-CA", {
+  style: "currency",
+  currency: "CAD",
+  maximumFractionDigits: 0,
+});
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ unit: string }>;
+}) {
+  const { unit } = await params;
+  const detail = await fetchPublicListingByUnit(decodeURIComponent(unit));
+  if (!detail) notFound();
+
+  return (
+    <main className="min-h-screen bg-gray-50">
+      <AppHeader
+        title={`${detail.year} ${detail.make} ${detail.model}`}
+        right={
+          <Link href="/" className="text-xs text-white/70 hover:text-white">
+            ← Catalogue
+          </Link>
+        }
+      />
+
+      <div className="max-w-6xl mx-auto px-4 py-5 grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <section>
+          <Gallery photos={detail.photos} alt={`${detail.make} ${detail.model} ${detail.year}`} />
+
+          <h1 className="text-2xl font-bold mt-5">
+            {detail.year} {detail.make} {detail.model}
+          </h1>
+          <p className="text-red-600 text-3xl font-bold font-mono mt-1">
+            {currencyFmt.format(detail.price_cad)}
+          </p>
+
+          <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm bg-white border rounded p-4">
+            <Pair label="Catégorie" value={detail.category} />
+            {detail.km > 0 && <Pair label="Kilométrage" value={`${detail.km.toLocaleString("fr-CA")} km`} />}
+            {detail.color && <Pair label="Couleur" value={detail.color} />}
+            <Pair label="Unit #" value={detail.unit} mono />
+            <Pair label="VIN" value={detail.vin} mono />
+          </dl>
+
+          {detail.description_fr && (
+            <article className="bg-white border rounded p-5 mt-4">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Description
+              </h2>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                {detail.description_fr}
+              </p>
+            </article>
+          )}
+        </section>
+
+        <aside>
+          <div className="bg-white border rounded p-4 sticky top-4">
+            <a
+              href="tel:+15555555555"
+              className="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-3 rounded font-semibold"
+            >
+              📞 Appeler
+            </a>
+            <p className="text-xs text-gray-500 mt-1 text-center">
+              Ou laisse-nous tes coordonnées — on te rappelle.
+            </p>
+            <LeadForm unit={detail.unit} />
+          </div>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+function Pair({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs text-gray-500">{label}</dt>
+      <dd className={"font-medium " + (mono ? "font-mono text-xs" : "")}>{value}</dd>
+    </div>
+  );
+}

@@ -12,6 +12,42 @@ export type Database = {
   };
   public: {
     Tables: {
+      lead: {
+        Row: {
+          created_at: string;
+          email: string | null;
+          id: string;
+          ip_hash: string | null;
+          message: string;
+          name: string;
+          phone: string | null;
+          unit: string;
+          user_agent: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          email?: string | null;
+          id?: string;
+          ip_hash?: string | null;
+          message?: string;
+          name: string;
+          phone?: string | null;
+          unit: string;
+          user_agent?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          email?: string | null;
+          id?: string;
+          ip_hash?: string | null;
+          message?: string;
+          name?: string;
+          phone?: string | null;
+          unit?: string;
+          user_agent?: string | null;
+        };
+        Relationships: [];
+      };
       listing: {
         Row: {
           channels: string[];
