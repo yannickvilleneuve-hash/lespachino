@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { setHidden } from "@/lib/listings/actions";
 import type { InventoryRow } from "@/lib/listings/queries";
@@ -161,6 +162,7 @@ function compareValues(a: string | number | boolean | null, b: string | number |
 }
 
 export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("");
   const [publishedOnly, setPublishedOnly] = useState(false);
@@ -323,8 +325,10 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
             {sorted.map((r) => (
               <tr
                 key={r.unit}
+                onClick={() => router.push(`/inventaire/${encodeURIComponent(r.unit)}`)}
                 className={
-                  "border-t hover:bg-blue-50 " + (r.hidden ? "bg-gray-50 text-gray-500" : "")
+                  "border-t hover:bg-blue-50 cursor-pointer " +
+                  (r.hidden ? "bg-gray-50 text-gray-500" : "")
                 }
               >
                 {COLUMNS.map((col) => {
@@ -340,7 +344,10 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
                     </td>
                   );
                 })}
-                <td className="px-2 py-1.5 text-center">
+                <td
+                  className="px-2 py-1.5 text-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {r.hidden ? (
                     <button
                       type="button"
