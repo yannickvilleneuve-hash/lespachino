@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
@@ -6,6 +7,20 @@ import AppHeader from "@/app/app-header";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: "Camions à vendre — Centre du camion Hino",
+  description:
+    "Catalogue de camions commerciaux Hino neufs et usagés, boîtes de camion, remorques. Vente, financement, service.",
+  openGraph: {
+    title: "Camions à vendre — Centre du camion Hino",
+    description:
+      "Catalogue de camions commerciaux Hino neufs et usagés, boîtes de camion, remorques.",
+    type: "website",
+    locale: "fr_CA",
+    siteName: "Centre du camion Hino",
+  },
+};
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",

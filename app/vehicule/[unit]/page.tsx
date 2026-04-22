@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
@@ -6,6 +7,38 @@ import Gallery from "./gallery";
 import LeadForm from "./lead-form";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ unit: string }>;
+}): Promise<Metadata> {
+  const { unit } = await params;
+  const detail = await fetchPublicListingByUnit(decodeURIComponent(unit));
+  if (!detail) return { title: "Véhicule introuvable" };
+  const title = `${detail.year} ${detail.make} ${detail.model} — ${currencyFmt.format(detail.price_cad)}`;
+  const description =
+    detail.description_fr ||
+    `${detail.make} ${detail.model} ${detail.year} disponible chez Centre du camion Hino.`;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      locale: "fr_CA",
+      siteName: "Centre du camion Hino",
+      images: detail.hero_url ? [{ url: detail.hero_url, width: 1200, height: 900 }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: detail.hero_url ? [detail.hero_url] : undefined,
+    },
+  };
+}
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",

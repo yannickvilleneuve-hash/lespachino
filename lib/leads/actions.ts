@@ -11,6 +11,27 @@ export type LeadResult = { ok: true } | { ok: false; error: string };
 
 const LEAD_INBOX = process.env.GRAPH_FROM ?? "service@camion-hino.ca";
 
+// Rate limit in-memory: 5 leads / heure / IP. Reset par redémarrage (pm2) = OK
+// pour MVP. Plus tard: Supabase table ou Redis si multi-instance.
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const rateLimitByIp = new Map<string, number[]>();
+
+function checkRateLimit(ipHash: string | null): boolean {
+  if (!ipHash) return true; // pas d'IP = dev/proxy weird → on laisse passer
+  const now = Date.now();
+  const history = (rateLimitByIp.get(ipHash) ?? []).filter(
+    (t) => now - t < RATE_LIMIT_WINDOW_MS,
+  );
+  if (history.length >= RATE_LIMIT_MAX) {
+    rateLimitByIp.set(ipHash, history);
+    return false;
+  }
+  history.push(now);
+  rateLimitByIp.set(ipHash, history);
+  return true;
+}
+
 function hashIp(ip: string | null | undefined): string | null {
   if (!ip) return null;
   return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 32);
@@ -75,6 +96,11 @@ export async function submitLead(formData: FormData): Promise<LeadResult> {
   const hdrs = await headers();
   const userAgent = hdrs.get("user-agent")?.slice(0, 300) ?? null;
   const ip = hdrs.get("x-forwarded-for")?.split(",")[0].trim() ?? hdrs.get("x-real-ip") ?? null;
+  const ipHash = hashIp(ip);
+
+  if (!checkRateLimit(ipHash)) {
+    return { ok: false, error: "Trop de demandes — réessaye plus tard." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("lead").insert({
@@ -84,7 +110,7 @@ export async function submitLead(formData: FormData): Promise<LeadResult> {
     email: parsed.data.email || null,
     message: parsed.data.message || "",
     user_agent: userAgent,
-    ip_hash: hashIp(ip),
+    ip_hash: ipHash,
   });
   if (error) return { ok: false, error: `Erreur enregistrement: ${error.message}` };
 
