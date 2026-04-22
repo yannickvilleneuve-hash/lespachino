@@ -87,10 +87,10 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
           </thead>
           <tbody className="bg-white">
             {filtered.map((r) => (
-              <tr key={r.vin} className="border-t hover:bg-blue-50">
+              <tr key={r.unit} className="border-t hover:bg-blue-50">
                 <td className="px-3 py-1.5 font-mono text-xs">
-                  <Link href={`/inventaire/${encodeURIComponent(r.vin)}`} className="text-blue-700 hover:underline">
-                    {r.unit || "—"}
+                  <Link href={`/inventaire/${encodeURIComponent(r.unit)}`} className="text-blue-700 hover:underline">
+                    {r.unit}
                   </Link>
                 </td>
                 <td className="px-3 py-1.5 font-mono text-xs">{r.vin}</td>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchVehicleByVin } from "@/lib/listings/queries";
+import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
 import ListingForm from "./listing-form";
@@ -17,10 +17,10 @@ const currencyFmt = new Intl.NumberFormat("fr-CA", {
 export default async function EditPage({
   params,
 }: {
-  params: Promise<{ vin: string }>;
+  params: Promise<{ unit: string }>;
 }) {
-  const { vin } = await params;
-  const detail = await fetchVehicleByVin(decodeURIComponent(vin));
+  const { unit } = await params;
+  const detail = await fetchVehicleByUnit(decodeURIComponent(unit));
   if (!detail) notFound();
   const photosWithUrls = await withSignedUrls(detail.photos);
 
@@ -31,7 +31,7 @@ export default async function EditPage({
           <Link href="/inventaire" className="text-sm text-gray-500 hover:underline">
             ← Inventaire
           </Link>
-          <h1 className="text-xl font-semibold font-mono">{detail.unit || detail.vin}</h1>
+          <h1 className="text-xl font-semibold font-mono">{detail.unit}</h1>
           {detail.is_published && (
             <span className="inline-block px-2 py-0.5 rounded text-xs bg-green-100 text-green-800">
               Publié
@@ -46,10 +46,10 @@ export default async function EditPage({
             Données SERTI (readonly)
           </h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-            <dt className="text-gray-500">VIN</dt>
-            <dd className="font-mono">{detail.vin}</dd>
             <dt className="text-gray-500">Unit</dt>
-            <dd className="font-mono">{detail.unit || "—"}</dd>
+            <dd className="font-mono">{detail.unit}</dd>
+            <dt className="text-gray-500">VIN</dt>
+            <dd className="font-mono text-xs">{detail.vin}</dd>
             <dt className="text-gray-500">Année</dt>
             <dd>{detail.year || "—"}</dd>
             <dt className="text-gray-500">Marque</dt>
@@ -75,7 +75,7 @@ export default async function EditPage({
 
         <section className="bg-white p-5 rounded shadow">
           <ListingForm
-            vin={detail.vin}
+            unit={detail.unit}
             defaults={{
               price_cad: detail.price_cad,
               description_fr: detail.description_fr,
@@ -89,7 +89,7 @@ export default async function EditPage({
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Photos
             </h2>
-            <PhotoManager vin={detail.vin} initialPhotos={photosWithUrls} />
+            <PhotoManager unit={detail.unit} initialPhotos={photosWithUrls} />
           </div>
         </section>
       </div>

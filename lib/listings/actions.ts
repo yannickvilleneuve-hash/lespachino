@@ -6,7 +6,7 @@ import { listingFormSchema, type ListingFormInput } from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
 
 const PHOTO_BUCKET = "vehicle-photos";
-const MAX_PHOTOS_PER_VIN = 15;
+const MAX_PHOTOS_PER_UNIT = 15;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -17,11 +17,11 @@ async function requireUser() {
   return { supabase, userId: data.user.id };
 }
 
-export async function upsertListing(vin: string, input: ListingFormInput): Promise<void> {
+export async function upsertListing(unit: string, input: ListingFormInput): Promise<void> {
   const parsed = listingFormSchema.parse(input);
   const { supabase, userId } = await requireUser();
   const { error } = await supabase.from("listing").upsert({
-    vin,
+    unit,
     price_cad: parsed.price_cad,
     description_fr: parsed.description_fr,
     channels: parsed.channels,
@@ -29,19 +29,19 @@ export async function upsertListing(vin: string, input: ListingFormInput): Promi
   });
   if (error) throw new Error(`upsertListing: ${error.message}`);
   revalidatePath("/inventaire");
-  revalidatePath(`/inventaire/${vin}`);
+  revalidatePath(`/inventaire/${unit}`);
 }
 
 export async function togglePublished(
-  vin: string,
+  unit: string,
   next: boolean,
 ): Promise<{ ok: true } | { ok: false; error: PublicationError }> {
   const { supabase, userId } = await requireUser();
 
   if (next) {
     const [listingRes, photosRes] = await Promise.all([
-      supabase.from("listing").select("price_cad, description_fr").eq("vin", vin).maybeSingle(),
-      supabase.from("vehicle_photo").select("is_hero").eq("vin", vin),
+      supabase.from("listing").select("price_cad, description_fr").eq("unit", unit).maybeSingle(),
+      supabase.from("vehicle_photo").select("is_hero").eq("unit", unit),
     ]);
     if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
     if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
@@ -55,13 +55,13 @@ export async function togglePublished(
   }
 
   const { error } = await supabase.from("listing").upsert({
-    vin,
+    unit,
     is_published: next,
     updated_by: userId,
   });
   if (error) throw new Error(`togglePublished: ${error.message}`);
   revalidatePath("/inventaire");
-  revalidatePath(`/inventaire/${vin}`);
+  revalidatePath(`/inventaire/${unit}`);
   return { ok: true };
 }
 
@@ -69,7 +69,7 @@ export type UploadPhotoResult =
   | { ok: true; id: string }
   | { ok: false; error: "limit_reached" | "invalid_type" | "too_big" | "no_file" };
 
-export async function uploadPhoto(vin: string, formData: FormData): Promise<UploadPhotoResult> {
+export async function uploadPhoto(unit: string, formData: FormData): Promise<UploadPhotoResult> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: "no_file" };
   if (!ALLOWED_MIME.has(file.type)) return { ok: false, error: "invalid_type" };
@@ -80,13 +80,13 @@ export async function uploadPhoto(vin: string, formData: FormData): Promise<Uplo
   const { count, error: countError } = await supabase
     .from("vehicle_photo")
     .select("*", { count: "exact", head: true })
-    .eq("vin", vin);
+    .eq("unit", unit);
   if (countError) throw new Error(`count: ${countError.message}`);
-  if ((count ?? 0) >= MAX_PHOTOS_PER_VIN) return { ok: false, error: "limit_reached" };
+  if ((count ?? 0) >= MAX_PHOTOS_PER_UNIT) return { ok: false, error: "limit_reached" };
 
   const ext = (file.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
   const id = crypto.randomUUID();
-  const path = `${vin}/${id}.${ext}`;
+  const path = `${unit}/${id}.${ext}`;
 
   const upload = await supabase.storage
     .from(PHOTO_BUCKET)
@@ -96,7 +96,7 @@ export async function uploadPhoto(vin: string, formData: FormData): Promise<Uplo
   const isFirst = (count ?? 0) === 0;
   const { error: insertError } = await supabase.from("vehicle_photo").insert({
     id,
-    vin,
+    unit,
     storage_path: path,
     position: count ?? 0,
     is_hero: isFirst,
@@ -107,7 +107,7 @@ export async function uploadPhoto(vin: string, formData: FormData): Promise<Uplo
     throw new Error(`photo insert: ${insertError.message}`);
   }
 
-  revalidatePath(`/inventaire/${vin}`);
+  revalidatePath(`/inventaire/${unit}`);
   revalidatePath("/inventaire");
   return { ok: true, id };
 }
@@ -117,7 +117,7 @@ export async function deletePhoto(id: string): Promise<void> {
 
   const { data: photo, error: fetchError } = await supabase
     .from("vehicle_photo")
-    .select("vin, storage_path, is_hero")
+    .select("unit, storage_path, is_hero")
     .eq("id", id)
     .single();
   if (fetchError) throw new Error(`fetch: ${fetchError.message}`);
@@ -131,7 +131,7 @@ export async function deletePhoto(id: string): Promise<void> {
     const { data: next } = await supabase
       .from("vehicle_photo")
       .select("id")
-      .eq("vin", photo.vin)
+      .eq("unit", photo.unit)
       .order("position", { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -140,34 +140,34 @@ export async function deletePhoto(id: string): Promise<void> {
     }
   }
 
-  revalidatePath(`/inventaire/${photo.vin}`);
+  revalidatePath(`/inventaire/${photo.unit}`);
   revalidatePath("/inventaire");
 }
 
-export async function reorderPhotos(vin: string, orderedIds: string[]): Promise<void> {
+export async function reorderPhotos(unit: string, orderedIds: string[]): Promise<void> {
   const { supabase } = await requireUser();
   for (let i = 0; i < orderedIds.length; i += 1) {
     const { error } = await supabase
       .from("vehicle_photo")
       .update({ position: i })
       .eq("id", orderedIds[i])
-      .eq("vin", vin);
+      .eq("unit", unit);
     if (error) throw new Error(`reorder ${orderedIds[i]}: ${error.message}`);
   }
-  revalidatePath(`/inventaire/${vin}`);
+  revalidatePath(`/inventaire/${unit}`);
 }
 
-export async function setHero(vin: string, id: string): Promise<void> {
+export async function setHero(unit: string, id: string): Promise<void> {
   const { supabase } = await requireUser();
   const { error: unsetError } = await supabase
     .from("vehicle_photo")
     .update({ is_hero: false })
-    .eq("vin", vin);
+    .eq("unit", unit);
   if (unsetError) throw new Error(`unset hero: ${unsetError.message}`);
   const { error: setError } = await supabase
     .from("vehicle_photo")
     .update({ is_hero: true })
     .eq("id", id);
   if (setError) throw new Error(`set hero: ${setError.message}`);
-  revalidatePath(`/inventaire/${vin}`);
+  revalidatePath(`/inventaire/${unit}`);
 }

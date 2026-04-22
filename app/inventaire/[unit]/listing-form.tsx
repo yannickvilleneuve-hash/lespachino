@@ -27,11 +27,11 @@ const CHANNEL_LABELS: Record<Channel, string> = {
 };
 
 export default function ListingForm({
-  vin,
+  unit,
   defaults,
   isPublished,
 }: {
-  vin: string;
+  unit: string;
   defaults: ListingFormInput;
   isPublished: boolean;
 }) {
@@ -48,14 +48,14 @@ export default function ListingForm({
   });
 
   async function onSubmit(values: ListingFormInput) {
-    await upsertListing(vin, values);
+    await upsertListing(unit, values);
     reset(values); // marque clean
   }
 
   function onTogglePublish() {
     setPublishMsg(null);
     startTransition(async () => {
-      const result = await togglePublished(vin, !isPublished);
+      const result = await togglePublished(unit, !isPublished);
       if (!result.ok) setPublishMsg(PUBLICATION_ERROR_MSG[result.error]);
     });
   }

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getVehicleByVin, listActiveVehicles, type Vehicle } from "@/lib/serti/wgi";
+import { getVehicleByUnit, listActiveVehicles, type Vehicle } from "@/lib/serti/wgi";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -33,29 +33,29 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   const vehicles = await listActiveVehicles();
   if (vehicles.length === 0) return [];
 
-  const vins = vehicles.map((v) => v.vin);
+  const units = vehicles.map((v) => v.unit);
   const supabase = await createClient();
 
   const [listingsRes, photosRes] = await Promise.all([
-    supabase.from("listing").select("vin, price_cad, is_published, channels").in("vin", vins),
-    supabase.from("vehicle_photo").select("vin, is_hero").in("vin", vins),
+    supabase.from("listing").select("unit, price_cad, is_published, channels").in("unit", units),
+    supabase.from("vehicle_photo").select("unit, is_hero").in("unit", units),
   ]);
 
   if (listingsRes.error) throw new Error(`listings fetch: ${listingsRes.error.message}`);
   if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
 
-  const listingMap = new Map(listingsRes.data.map((l) => [l.vin, l]));
-  const photoByVin = new Map<string, { count: number; hero: boolean }>();
+  const listingMap = new Map(listingsRes.data.map((l) => [l.unit, l]));
+  const photoByUnit = new Map<string, { count: number; hero: boolean }>();
   for (const p of photosRes.data) {
-    const entry = photoByVin.get(p.vin) ?? { count: 0, hero: false };
+    const entry = photoByUnit.get(p.unit) ?? { count: 0, hero: false };
     entry.count += 1;
     if (p.is_hero) entry.hero = true;
-    photoByVin.set(p.vin, entry);
+    photoByUnit.set(p.unit, entry);
   }
 
   return vehicles.map((v) => {
-    const l = listingMap.get(v.vin);
-    const photos = photoByVin.get(v.vin);
+    const l = listingMap.get(v.unit);
+    const photos = photoByUnit.get(v.unit);
     return {
       ...v,
       price_cad: l?.price_cad ?? 0,
@@ -67,8 +67,8 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   });
 }
 
-export async function fetchVehicleByVin(vin: string): Promise<InventoryDetail | null> {
-  const vehicle = await getVehicleByVin(vin);
+export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail | null> {
+  const vehicle = await getVehicleByUnit(unit);
   if (!vehicle) return null;
 
   const supabase = await createClient();
@@ -76,19 +76,19 @@ export async function fetchVehicleByVin(vin: string): Promise<InventoryDetail | 
     supabase
       .from("listing")
       .select("*")
-      .eq("vin", vin)
+      .eq("unit", unit)
       .maybeSingle(),
     supabase
       .from("vehicle_photo")
       .select("*")
-      .eq("vin", vin)
+      .eq("unit", unit)
       .order("position", { ascending: true }),
   ]);
 
   if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
   if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
 
-  const l = listingRes.data ?? { ...emptyListing(), vin };
+  const l = listingRes.data ?? { ...emptyListing(), unit };
   const photos = photosRes.data;
 
   return {

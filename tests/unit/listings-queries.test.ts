@@ -4,7 +4,7 @@ const supabaseMock = { listing: { data: [] as unknown[], error: null as unknown 
 
 vi.mock("@/lib/serti/wgi", () => ({
   listActiveVehicles: vi.fn(),
-  getVehicleByVin: vi.fn(),
+  getVehicleByUnit: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -24,8 +24,8 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-import { fetchInventory, fetchVehicleByVin } from "@/lib/listings/queries";
-import { listActiveVehicles, getVehicleByVin } from "@/lib/serti/wgi";
+import { fetchInventory, fetchVehicleByUnit } from "@/lib/listings/queries";
+import { listActiveVehicles, getVehicleByUnit } from "@/lib/serti/wgi";
 
 const baseVehicle = {
   vin: "V1",
@@ -47,7 +47,7 @@ describe("fetchInventory", () => {
     supabaseMock.photos = { data: [], error: null };
   });
 
-  it("retourne defaults quand VIN absent de listing", async () => {
+  it("retourne defaults quand unit absent de listing", async () => {
     (listActiveVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
     const rows = await fetchInventory();
     expect(rows[0].price_cad).toBe(0);
@@ -60,13 +60,13 @@ describe("fetchInventory", () => {
   it("merge prix + photos quand présents", async () => {
     (listActiveVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
     supabaseMock.listing = {
-      data: [{ vin: "V1", price_cad: 45000, is_published: true, channels: ["native", "fb"] }],
+      data: [{ unit: "U1", price_cad: 45000, is_published: true, channels: ["native", "fb"] }],
       error: null,
     };
     supabaseMock.photos = {
       data: [
-        { vin: "V1", is_hero: true },
-        { vin: "V1", is_hero: false },
+        { unit: "U1", is_hero: true },
+        { unit: "U1", is_hero: false },
       ],
       error: null,
     };
@@ -84,7 +84,7 @@ describe("fetchInventory", () => {
   });
 });
 
-describe("fetchVehicleByVin", () => {
+describe("fetchVehicleByUnit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     supabaseMock.listing = { data: [], error: null };
@@ -92,16 +92,16 @@ describe("fetchVehicleByVin", () => {
   });
 
   it("retourne null si WGI introuvable", async () => {
-    (getVehicleByVin as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-    expect(await fetchVehicleByVin("X")).toBeNull();
+    (getVehicleByUnit as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    expect(await fetchVehicleByUnit("X")).toBeNull();
   });
 
   it("combine WGI + listing + photos", async () => {
-    (getVehicleByVin as ReturnType<typeof vi.fn>).mockResolvedValue(baseVehicle);
+    (getVehicleByUnit as ReturnType<typeof vi.fn>).mockResolvedValue(baseVehicle);
     supabaseMock.listing = {
       data: [
         {
-          vin: "V1",
+          unit: "U1",
           price_cad: 25000,
           description_fr: "Nice",
           is_published: false,
@@ -117,8 +117,8 @@ describe("fetchVehicleByVin", () => {
       data: [
         {
           id: "p1",
-          vin: "V1",
-          storage_path: "V1/a.jpg",
+          unit: "U1",
+          storage_path: "U1/a.jpg",
           position: 0,
           is_hero: true,
           uploaded_by: null,
@@ -127,7 +127,7 @@ describe("fetchVehicleByVin", () => {
       ],
       error: null,
     };
-    const d = await fetchVehicleByVin("V1");
+    const d = await fetchVehicleByUnit("U1");
     expect(d?.price_cad).toBe(25000);
     expect(d?.description_fr).toBe("Nice");
     expect(d?.photo_count).toBe(1);

@@ -19,9 +19,9 @@ export type Database = {
           description_fr: string;
           is_published: boolean;
           price_cad: number;
+          unit: string;
           updated_at: string;
           updated_by: string | null;
-          vin: string;
         };
         Insert: {
           channels?: string[];
@@ -29,9 +29,9 @@ export type Database = {
           description_fr?: string;
           is_published?: boolean;
           price_cad?: number;
+          unit: string;
           updated_at?: string;
           updated_by?: string | null;
-          vin: string;
         };
         Update: {
           channels?: string[];
@@ -39,9 +39,9 @@ export type Database = {
           description_fr?: string;
           is_published?: boolean;
           price_cad?: number;
+          unit?: string;
           updated_at?: string;
           updated_by?: string | null;
-          vin?: string;
         };
         Relationships: [];
       };
@@ -51,27 +51,27 @@ export type Database = {
           is_hero: boolean;
           position: number;
           storage_path: string;
+          unit: string;
           uploaded_at: string;
           uploaded_by: string | null;
-          vin: string;
         };
         Insert: {
           id?: string;
           is_hero?: boolean;
           position?: number;
           storage_path: string;
+          unit: string;
           uploaded_at?: string;
           uploaded_by?: string | null;
-          vin: string;
         };
         Update: {
           id?: string;
           is_hero?: boolean;
           position?: number;
           storage_path?: string;
+          unit?: string;
           uploaded_at?: string;
           uploaded_by?: string | null;
-          vin?: string;
         };
         Relationships: [];
       };

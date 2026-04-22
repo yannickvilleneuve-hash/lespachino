@@ -64,6 +64,14 @@ export async function getVehicleByVin(vin: string): Promise<Vehicle | null> {
   return row ? mapRow(row) : null;
 }
 
+export async function getVehicleByUnit(unit: string): Promise<Vehicle | null> {
+  const row = await queryOne<WgiRow>(
+    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE TRIM(WGIUNM) = ?`,
+    [unit.trim()],
+  );
+  return row ? mapRow(row) : null;
+}
+
 export async function listActiveVehicles(): Promise<Vehicle[]> {
   const rows = await query<WgiRow>(
     `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE WGISTA = 'A' ORDER BY WGIUNM`,

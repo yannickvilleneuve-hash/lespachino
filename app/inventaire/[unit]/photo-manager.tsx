@@ -34,10 +34,10 @@ const UPLOAD_ERROR_MSG: Record<Exclude<UploadPhotoResult, { ok: true }>["error"]
 };
 
 export default function PhotoManager({
-  vin,
+  unit,
   initialPhotos,
 }: {
-  vin: string;
+  unit: string;
   initialPhotos: PhotoWithUrl[];
 }) {
   const [photos, setPhotos] = useState(initialPhotos);
@@ -55,7 +55,7 @@ export default function PhotoManager({
     setPhotos(next);
     startTransition(async () => {
       try {
-        await reorderPhotos(vin, next.map((p) => p.id));
+        await reorderPhotos(unit, next.map((p) => p.id));
       } catch (err) {
         setMsg((err as Error).message);
       }
@@ -70,7 +70,7 @@ export default function PhotoManager({
     for (const file of files) {
       const fd = new FormData();
       fd.append("file", file);
-      const result = await uploadPhoto(vin, fd);
+      const result = await uploadPhoto(unit, fd);
       if (!result.ok) {
         setMsg(UPLOAD_ERROR_MSG[result.error]);
         break;
@@ -92,7 +92,7 @@ export default function PhotoManager({
   function onSetHero(id: string) {
     startTransition(async () => {
       try {
-        await setHero(vin, id);
+        await setHero(unit, id);
         setPhotos((curr) => curr.map((p) => ({ ...p, is_hero: p.id === id })));
       } catch (err) {
         setMsg((err as Error).message);
