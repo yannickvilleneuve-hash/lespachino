@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchVehicleByVin } from "@/lib/listings/queries";
+import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
 import ListingForm from "./listing-form";
+import PhotoManager from "./photo-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ export default async function EditPage({
   const { vin } = await params;
   const detail = await fetchVehicleByVin(decodeURIComponent(vin));
   if (!detail) notFound();
+  const photosWithUrls = await withSignedUrls(detail.photos);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -83,12 +86,10 @@ export default async function EditPage({
             isPublished={detail.is_published}
           />
           <div className="mt-6 pt-6 border-t">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Photos
             </h2>
-            <p className="text-sm text-gray-500">
-              Photo manager arrive en Task 7 ({detail.photo_count} photo{detail.photo_count > 1 ? "s" : ""} en DB).
-            </p>
+            <PhotoManager vin={detail.vin} initialPhotos={photosWithUrls} />
           </div>
         </section>
       </div>
