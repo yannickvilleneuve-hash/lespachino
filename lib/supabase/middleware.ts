@@ -33,5 +33,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (path === "/login" && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/inventaire";
+    return NextResponse.redirect(url);
+  }
+
   return response;
 }
