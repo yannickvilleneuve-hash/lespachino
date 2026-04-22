@@ -12,6 +12,8 @@ export interface Vehicle {
   color: string;
   /** Coûtant interne (WGICST). Ne JAMAIS exposer au catalogue public. */
   cost: number;
+  /** Date d'ajout en inventaire actif (WGIDAV, ISO `YYYY-MM-DD`). */
+  date_added: string | null;
 }
 
 interface WgiRow {
@@ -25,10 +27,11 @@ interface WgiRow {
   WGISTA: string;
   WGICLD: string;
   WGICST: string;
+  WGIDAV: string;
 }
 
 const SELECT_COLS =
-  "WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD, WGICST";
+  "WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD, WGICST, WGIDAV";
 
 function s(v: string | null | undefined): string {
   return (v ?? "").trim();
@@ -39,6 +42,17 @@ function n(v: string | null | undefined): number {
   if (!t) return 0;
   const parsed = Number(t);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseYyyymmdd(v: string | null | undefined): string | null {
+  const t = s(v);
+  if (!t || t === "0" || t === "00000000") return null;
+  if (!/^\d{8}$/.test(t)) return null;
+  const y = t.slice(0, 4);
+  const m = t.slice(4, 6);
+  const d = t.slice(6, 8);
+  if (y === "0000" || m === "00" || d === "00") return null;
+  return `${y}-${m}-${d}`;
 }
 
 function mapRow(row: WgiRow): Vehicle {
@@ -53,6 +67,7 @@ function mapRow(row: WgiRow): Vehicle {
     status: s(row.WGISTA),
     color: s(row.WGICLD),
     cost: n(row.WGICST),
+    date_added: parseYyyymmdd(row.WGIDAV),
   };
 }
 

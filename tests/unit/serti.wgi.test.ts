@@ -20,6 +20,7 @@ describe("getVehicleByVin", () => {
       WGISTA: "A",
       WGICLD: "BLANC",
       WGICST: "6396.07",
+      WGIDAV: "20260326",
     });
     const v = await getVehicleByVin("1GB0G2BG8C1162818");
     expect(v).toEqual({
@@ -33,6 +34,7 @@ describe("getVehicleByVin", () => {
       status: "A",
       color: "BLANC",
       cost: 6396.07,
+      date_added: "2026-03-26",
     });
   });
 
@@ -53,12 +55,14 @@ describe("getVehicleByVin", () => {
       WGISTA: "A",
       WGICLD: "BLANC",
       WGICST: "0.00",
+      WGIDAV: "0",
     });
     const v = await getVehicleByVin("ABC");
     expect(v?.vin).toBe("ABC");
     expect(v?.category).toBe("CAMION NEUF");
     expect(v?.make).toBe("HINO");
     expect(v?.cost).toBe(0);
+    expect(v?.date_added).toBeNull();
   });
 });
 
@@ -78,12 +82,14 @@ describe("listActiveVehicles", () => {
         WGISTA: "A",
         WGICLD: "BLANC",
         WGICST: "85000.00",
+        WGIDAV: "20260401",
       },
     ]);
     const v = await listActiveVehicles();
     expect(v).toHaveLength(1);
     expect(v[0].vin).toBe("VIN1");
     expect(v[0].cost).toBe(85000);
+    expect(v[0].date_added).toBe("2026-04-01");
   });
 
   it("vide quand aucune ligne", async () => {

@@ -38,6 +38,7 @@ const baseVehicle = {
   status: "A" as const,
   color: "BLANC",
   cost: 50000,
+  date_added: "2026-04-01",
 };
 
 describe("fetchInventory", () => {
