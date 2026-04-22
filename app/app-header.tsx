@@ -17,10 +17,10 @@ export default function AppHeader({
         <Image
           src="/logo1.jpg"
           alt="Centre du camion Hino"
-          width={120}
+          width={78}
           height={32}
           priority
-          className="h-8 w-auto rounded-sm"
+          className="rounded-sm"
         />
       </Link>
       <h1 className="text-sm font-semibold tracking-wide uppercase">

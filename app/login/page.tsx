@@ -35,10 +35,10 @@ export default function LoginPage() {
           <Image
             src="/logo1.jpg"
             alt="Centre du camion Hino"
-            width={120}
+            width={78}
             height={32}
             priority
-            className="h-8 w-auto rounded-sm"
+            className="rounded-sm"
           />
           <h1 className="text-lg font-semibold">Ventes — Interne</h1>
         </div>
