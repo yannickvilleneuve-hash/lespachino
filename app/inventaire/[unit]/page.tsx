@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
+import AppHeader from "@/app/app-header";
 import ListingForm from "./listing-form";
 import PhotoManager from "./photo-manager";
 
@@ -26,19 +27,21 @@ export default async function EditPage({
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
-        <div className="flex items-center gap-4">
-          <Link href="/inventaire" className="text-sm text-gray-500 hover:underline">
-            ← Inventaire
-          </Link>
-          <h1 className="text-xl font-semibold font-mono">{detail.unit}</h1>
-          {detail.is_published && (
-            <span className="inline-block px-2 py-0.5 rounded text-xs bg-green-100 text-green-800">
-              Publié
-            </span>
-          )}
-        </div>
-      </header>
+      <AppHeader
+        title={`Inventaire · ${detail.unit}`}
+        right={
+          <>
+            {detail.is_published && (
+              <span className="inline-block px-2 py-0.5 rounded text-xs bg-green-400/20 text-green-200 border border-green-400/40">
+                Publié
+              </span>
+            )}
+            <Link href="/inventaire" className="text-xs text-white/70 hover:text-white">
+              ← Inventaire
+            </Link>
+          </>
+        }
+      />
 
       <div className="grid gap-6 p-6 lg:grid-cols-[1fr_2fr] max-w-7xl">
         <aside className="bg-white p-5 rounded shadow space-y-3">

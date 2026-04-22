@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { fetchInventory } from "@/lib/listings/queries";
+import AppHeader from "@/app/app-header";
 import InventaireTable from "./inventaire-table";
 
 export const dynamic = "force-dynamic";
@@ -9,15 +10,24 @@ export default async function InventairePage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:underline">
-            ← Dashboard
-          </Link>
-          <h1 className="text-xl font-semibold">Inventaire</h1>
-          <span className="text-sm text-gray-500">{rows.length} véhicule{rows.length > 1 ? "s" : ""} actif{rows.length > 1 ? "s" : ""}</span>
-        </div>
-      </header>
+      <AppHeader
+        title="Inventaire"
+        right={
+          <>
+            <span className="text-xs text-white/70">
+              {rows.length} véhicule{rows.length > 1 ? "s" : ""} actif{rows.length > 1 ? "s" : ""}
+            </span>
+            <Link href="/dashboard" className="text-xs text-white/70 hover:text-white">
+              Dashboard
+            </Link>
+            <form action="/auth/signout" method="post">
+              <button type="submit" className="text-xs text-white/70 hover:text-white">
+                Déconnexion
+              </button>
+            </form>
+          </>
+        }
+      />
       <InventaireTable rows={rows} />
     </main>
   );
