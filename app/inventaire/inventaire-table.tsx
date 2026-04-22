@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { setHidden } from "@/lib/listings/actions";
 import type { InventoryRow } from "@/lib/listings/queries";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
@@ -60,18 +61,8 @@ const COLUMNS: ColumnDef[] = [
     render: (r) => r.year || "—",
     value: (r) => r.year,
   },
-  {
-    key: "make",
-    label: "Marque",
-    render: (r) => r.make,
-    value: (r) => r.make,
-  },
-  {
-    key: "model",
-    label: "Modèle",
-    render: (r) => r.model,
-    value: (r) => r.model,
-  },
+  { key: "make", label: "Marque", render: (r) => r.make, value: (r) => r.make },
+  { key: "model", label: "Modèle", render: (r) => r.model, value: (r) => r.model },
   {
     key: "km",
     label: "Km",
@@ -173,8 +164,11 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("");
   const [publishedOnly, setPublishedOnly] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("unit");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [pending, startTransition] = useTransition();
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const categories = useMemo(
     () => Array.from(new Set(rows.map((r) => r.category))).filter(Boolean).sort(),
@@ -184,6 +178,7 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
+      if (!showHidden && r.hidden) return false;
       if (publishedOnly && !r.is_published) return false;
       if (category && r.category !== category) return false;
       if (!q) return true;
@@ -194,7 +189,7 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
         r.model.toLowerCase().includes(q)
       );
     });
-  }, [rows, search, category, publishedOnly]);
+  }, [rows, search, category, publishedOnly, showHidden]);
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -214,6 +209,34 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
       setSortKey(key);
       setSortDir(DEFAULT_DIR[key]);
     }
+  }
+
+  function onHide(row: InventoryRow) {
+    const ok = window.confirm(
+      `Retirer « ${row.unit} » de la liste ?\n\n` +
+        "Le véhicule reste dans Merlin/SERTI (source de vérité).\n" +
+        "Seulement caché de notre inventaire. Réactivable via « Afficher cachés ».",
+    );
+    if (!ok) return;
+    setErrMsg(null);
+    startTransition(async () => {
+      try {
+        await setHidden(row.unit, true);
+      } catch (e) {
+        setErrMsg((e as Error).message);
+      }
+    });
+  }
+
+  function onRestore(row: InventoryRow) {
+    setErrMsg(null);
+    startTransition(async () => {
+      try {
+        await setHidden(row.unit, false);
+      } catch (e) {
+        setErrMsg((e as Error).message);
+      }
+    });
   }
 
   return (
@@ -246,10 +269,22 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
           />
           Publiés seulement
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showHidden}
+            onChange={(e) => setShowHidden(e.target.checked)}
+          />
+          Afficher cachés
+        </label>
         <span className="text-sm text-gray-500 ml-auto">
           {sorted.length} / {rows.length}
         </span>
       </div>
+
+      {errMsg && (
+        <div className="px-6 py-2 bg-red-50 text-sm text-red-700 border-b">{errMsg}</div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -281,11 +316,17 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
                   </th>
                 );
               })}
+              <th className="px-3 py-2 w-10"></th>
             </tr>
           </thead>
           <tbody className="bg-white">
             {sorted.map((r) => (
-              <tr key={r.unit} className="border-t hover:bg-blue-50">
+              <tr
+                key={r.unit}
+                className={
+                  "border-t hover:bg-blue-50 " + (r.hidden ? "bg-gray-50 text-gray-500" : "")
+                }
+              >
                 {COLUMNS.map((col) => {
                   const align =
                     col.align === "right"
@@ -299,11 +340,34 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
                     </td>
                   );
                 })}
+                <td className="px-2 py-1.5 text-center">
+                  {r.hidden ? (
+                    <button
+                      type="button"
+                      onClick={() => onRestore(r)}
+                      disabled={pending}
+                      title="Restaurer dans l'inventaire"
+                      className="text-green-600 hover:text-green-800 disabled:opacity-40"
+                    >
+                      ↩
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onHide(r)}
+                      disabled={pending}
+                      title="Retirer de la liste (reste dans Merlin)"
+                      className="text-gray-400 hover:text-red-600 disabled:opacity-40"
+                    >
+                      🗑
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-3 py-8 text-center text-gray-500">
+                <td colSpan={COLUMNS.length + 1} className="px-3 py-8 text-center text-gray-500">
                   Aucun véhicule
                 </td>
               </tr>

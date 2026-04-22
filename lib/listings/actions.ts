@@ -65,6 +65,18 @@ export async function togglePublished(
   return { ok: true };
 }
 
+export async function setHidden(unit: string, hidden: boolean): Promise<void> {
+  const { supabase, userId } = await requireUser();
+  const { error } = await supabase.from("listing").upsert({
+    unit,
+    hidden,
+    updated_by: userId,
+  });
+  if (error) throw new Error(`setHidden: ${error.message}`);
+  revalidatePath("/inventaire");
+  revalidatePath(`/inventaire/${unit}`);
+}
+
 export type UploadPhotoResult =
   | { ok: true; id: string }
   | { ok: false; error: "limit_reached" | "invalid_type" | "too_big" | "no_file" };

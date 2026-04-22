@@ -17,6 +17,7 @@ export type Database = {
           channels: string[];
           created_at: string;
           description_fr: string;
+          hidden: boolean;
           is_published: boolean;
           price_cad: number;
           unit: string;
@@ -27,6 +28,7 @@ export type Database = {
           channels?: string[];
           created_at?: string;
           description_fr?: string;
+          hidden?: boolean;
           is_published?: boolean;
           price_cad?: number;
           unit: string;
@@ -37,6 +39,7 @@ export type Database = {
           channels?: string[];
           created_at?: string;
           description_fr?: string;
+          hidden?: boolean;
           is_published?: boolean;
           price_cad?: number;
           unit?: string;

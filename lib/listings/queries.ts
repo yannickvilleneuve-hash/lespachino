@@ -11,6 +11,7 @@ export interface InventoryRow extends Vehicle {
   channels: string[];
   photo_count: number;
   has_hero: boolean;
+  hidden: boolean;
 }
 
 export interface InventoryDetail extends InventoryRow {
@@ -37,7 +38,10 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   const supabase = await createClient();
 
   const [listingsRes, photosRes] = await Promise.all([
-    supabase.from("listing").select("unit, price_cad, is_published, channels").in("unit", units),
+    supabase
+      .from("listing")
+      .select("unit, price_cad, is_published, channels, hidden")
+      .in("unit", units),
     supabase.from("vehicle_photo").select("unit, is_hero").in("unit", units),
   ]);
 
@@ -63,6 +67,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       channels: l?.channels ?? CHANNEL_DEFAULTS,
       photo_count: photos?.count ?? 0,
       has_hero: photos?.hero ?? false,
+      hidden: l?.hidden ?? false,
     };
   });
 }
@@ -97,6 +102,7 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     description_fr: l.description_fr,
     is_published: l.is_published,
     channels: l.channels,
+    hidden: (l as { hidden?: boolean }).hidden ?? false,
     photo_count: photos.length,
     has_hero: photos.some((p) => p.is_hero),
     photos,
