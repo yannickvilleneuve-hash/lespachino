@@ -25,6 +25,11 @@ export async function queryOne<T>(sql: string, params: unknown[] = []): Promise<
   return rows[0] ?? null;
 }
 
+export async function query<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const pool = getPool();
+  return (await pool.query(sql, params as never)) as T[];
+}
+
 export async function sertiHealthCheck(): Promise<boolean> {
   try {
     await getPool().query("SELECT 1 FROM SYSIBM.SYSDUMMY1");

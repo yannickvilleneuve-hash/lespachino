@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/serti/client", () => ({ queryOne: vi.fn() }));
+vi.mock("@/lib/serti/client", () => ({ queryOne: vi.fn(), query: vi.fn() }));
 
-import { getVehicleByVin } from "@/lib/serti/wgi";
-import { queryOne } from "@/lib/serti/client";
+import { getVehicleByVin, listActiveVehicles } from "@/lib/serti/wgi";
+import { queryOne, query } from "@/lib/serti/client";
 
 describe("getVehicleByVin", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -19,6 +19,7 @@ describe("getVehicleByVin", () => {
       WGICAT: "CAMION USAGE",
       WGISTA: "A",
       WGICLD: "BLANC",
+      WGICST: "6396.07",
     });
     const v = await getVehicleByVin("1GB0G2BG8C1162818");
     expect(v).toEqual({
@@ -31,6 +32,7 @@ describe("getVehicleByVin", () => {
       category: "CAMION USAGE",
       status: "A",
       color: "BLANC",
+      cost: 6396.07,
     });
   });
 
@@ -50,10 +52,42 @@ describe("getVehicleByVin", () => {
       WGICAT: "CAMION NEUF         ",
       WGISTA: "A",
       WGICLD: "BLANC",
+      WGICST: "0.00",
     });
     const v = await getVehicleByVin("ABC");
     expect(v?.vin).toBe("ABC");
     expect(v?.category).toBe("CAMION NEUF");
     expect(v?.make).toBe("HINO");
+    expect(v?.cost).toBe(0);
+  });
+});
+
+describe("listActiveVehicles", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retourne la liste mappée", async () => {
+    (query as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        WGISER: "VIN1",
+        WGIUNM: "U1",
+        WGIMKE: "HINO",
+        WGIMDL: "L7",
+        WGIYEA: "2022",
+        WGIODM: "50000",
+        WGICAT: "CAMION NEUF",
+        WGISTA: "A",
+        WGICLD: "BLANC",
+        WGICST: "85000.00",
+      },
+    ]);
+    const v = await listActiveVehicles();
+    expect(v).toHaveLength(1);
+    expect(v[0].vin).toBe("VIN1");
+    expect(v[0].cost).toBe(85000);
+  });
+
+  it("vide quand aucune ligne", async () => {
+    (query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    expect(await listActiveVehicles()).toEqual([]);
   });
 });

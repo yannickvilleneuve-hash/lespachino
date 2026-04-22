@@ -1,4 +1,4 @@
-import { queryOne } from "./client";
+import { query, queryOne } from "./client";
 
 export interface Vehicle {
   vin: string;
@@ -10,6 +10,8 @@ export interface Vehicle {
   category: string;
   status: "A" | "S" | "R" | string;
   color: string;
+  /** Coûtant interne (WGICST). Ne JAMAIS exposer au catalogue public. */
+  cost: number;
 }
 
 interface WgiRow {
@@ -22,7 +24,11 @@ interface WgiRow {
   WGICAT: string;
   WGISTA: string;
   WGICLD: string;
+  WGICST: string;
 }
+
+const SELECT_COLS =
+  "WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD, WGICST";
 
 function s(v: string | null | undefined): string {
   return (v ?? "").trim();
@@ -35,12 +41,7 @@ function n(v: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export async function getVehicleByVin(vin: string): Promise<Vehicle | null> {
-  const row = await queryOne<WgiRow>(
-    "SELECT WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD FROM SDSFC.WGI WHERE TRIM(WGISER) = ?",
-    [vin.trim()],
-  );
-  if (!row) return null;
+function mapRow(row: WgiRow): Vehicle {
   return {
     vin: s(row.WGISER),
     unit: s(row.WGIUNM),
@@ -51,5 +52,21 @@ export async function getVehicleByVin(vin: string): Promise<Vehicle | null> {
     category: s(row.WGICAT),
     status: s(row.WGISTA),
     color: s(row.WGICLD),
+    cost: n(row.WGICST),
   };
+}
+
+export async function getVehicleByVin(vin: string): Promise<Vehicle | null> {
+  const row = await queryOne<WgiRow>(
+    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE TRIM(WGISER) = ?`,
+    [vin.trim()],
+  );
+  return row ? mapRow(row) : null;
+}
+
+export async function listActiveVehicles(): Promise<Vehicle[]> {
+  const rows = await query<WgiRow>(
+    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE WGISTA = 'A' ORDER BY WGIUNM`,
+  );
+  return rows.map(mapRow);
 }
