@@ -48,7 +48,7 @@ function mapBodyStyle(category: string): string {
 
 export async function GET(request: Request) {
   const listings = await fetchPublicListings();
-  const origin = new URL(request.url).origin;
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
 
   const headers = [
     "vehicle_id",

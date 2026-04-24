@@ -6,7 +6,7 @@ export const revalidate = 300;
 
 export async function GET(request: Request) {
   const listings = await fetchPublicListings();
-  const origin = new URL(request.url).origin;
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   return NextResponse.json(
     {
       generator: "camion-hino.ca",
