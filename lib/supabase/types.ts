@@ -84,6 +84,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      view_event: {
+        Row: {
+          created_at: string;
+          id: string;
+          ip_hash: string | null;
+          referrer: string | null;
+          unit: string;
+          user_agent: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          ip_hash?: string | null;
+          referrer?: string | null;
+          unit: string;
+          user_agent?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          ip_hash?: string | null;
+          referrer?: string | null;
+          unit?: string;
+          user_agent?: string | null;
+        };
+        Relationships: [];
+      };
       vehicle_photo: {
         Row: {
           id: string;

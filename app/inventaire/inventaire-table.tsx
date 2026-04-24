@@ -24,7 +24,9 @@ type SortKey =
   | "price_cad"
   | "photo_count"
   | "is_published"
-  | "date_added";
+  | "date_added"
+  | "views_7d"
+  | "leads_7d";
 type SortDir = "asc" | "desc";
 
 interface ColumnDef {
@@ -122,6 +124,32 @@ const COLUMNS: ColumnDef[] = [
     value: (r) => r.photo_count,
   },
   {
+    key: "views_7d",
+    label: "Vues 7j",
+    align: "right",
+    render: (r) => (
+      <span className={r.views_7d > 0 ? "font-mono" : "font-mono text-gray-400"}>
+        {r.views_7d}
+      </span>
+    ),
+    value: (r) => r.views_7d,
+  },
+  {
+    key: "leads_7d",
+    label: "Leads 7j",
+    align: "right",
+    render: (r) => (
+      <span
+        className={
+          r.leads_7d > 0 ? "font-mono font-semibold text-green-700" : "font-mono text-gray-400"
+        }
+      >
+        {r.leads_7d}
+      </span>
+    ),
+    value: (r) => r.leads_7d,
+  },
+  {
     key: "is_published",
     label: "Publié",
     align: "center",
@@ -150,6 +178,8 @@ const DEFAULT_DIR: Record<SortKey, SortDir> = {
   price_cad: "desc",
   photo_count: "desc",
   is_published: "desc",
+  views_7d: "desc",
+  leads_7d: "desc",
 };
 
 function compareValues(a: string | number | boolean | null, b: string | number | boolean | null) {

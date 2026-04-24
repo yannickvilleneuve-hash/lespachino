@@ -5,10 +5,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 /**
- * Facebook Marketplace / Meta Automotive Inventory Ads catalog feed.
- * Même format que /feed/vehicles.xml (Google VLA) — Meta accepte le namespace
- * `g:` nativement. Route dédiée pour que l'URL soit clairement identifiable
- * dans Meta Commerce Manager.
+ * Feed canonique Google Vehicle Listings Ads (RSS + g: namespace).
+ * Format accepté par: Google VLA, Meta/Facebook, la plupart des agrégateurs
+ * automotive qui supportent RSS vehicle listings.
  */
 export async function GET(request: Request) {
   const listings = await fetchPublicListings();

@@ -12,6 +12,8 @@ export interface InventoryRow extends Vehicle {
   photo_count: number;
   has_hero: boolean;
   hidden: boolean;
+  views_7d: number;
+  leads_7d: number;
 }
 
 export interface InventoryDetail extends InventoryRow {
@@ -37,16 +39,30 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   const units = vehicles.map((v) => v.unit);
   const supabase = await createClient();
 
-  const [listingsRes, photosRes] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [listingsRes, photosRes, viewsRes, leadsRes] = await Promise.all([
     supabase
       .from("listing")
       .select("unit, price_cad, is_published, channels, hidden")
       .in("unit", units),
     supabase.from("vehicle_photo").select("unit, is_hero").in("unit", units),
+    supabase
+      .from("view_event")
+      .select("unit")
+      .in("unit", units)
+      .gte("created_at", sevenDaysAgo),
+    supabase
+      .from("lead")
+      .select("unit")
+      .in("unit", units)
+      .gte("created_at", sevenDaysAgo),
   ]);
 
   if (listingsRes.error) throw new Error(`listings fetch: ${listingsRes.error.message}`);
   if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
+  if (viewsRes.error) throw new Error(`views fetch: ${viewsRes.error.message}`);
+  if (leadsRes.error) throw new Error(`leads fetch: ${leadsRes.error.message}`);
 
   const listingMap = new Map(listingsRes.data.map((l) => [l.unit, l]));
   const photoByUnit = new Map<string, { count: number; hero: boolean }>();
@@ -56,6 +72,11 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
     if (p.is_hero) entry.hero = true;
     photoByUnit.set(p.unit, entry);
   }
+
+  const viewCount = new Map<string, number>();
+  for (const v of viewsRes.data) viewCount.set(v.unit, (viewCount.get(v.unit) ?? 0) + 1);
+  const leadCount = new Map<string, number>();
+  for (const l of leadsRes.data) leadCount.set(l.unit, (leadCount.get(l.unit) ?? 0) + 1);
 
   return vehicles.map((v) => {
     const l = listingMap.get(v.unit);
@@ -68,6 +89,8 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       photo_count: photos?.count ?? 0,
       has_hero: photos?.hero ?? false,
       hidden: l?.hidden ?? false,
+      views_7d: viewCount.get(v.unit) ?? 0,
+      leads_7d: leadCount.get(v.unit) ?? 0,
     };
   });
 }
@@ -77,17 +100,25 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
   if (!vehicle) return null;
 
   const supabase = await createClient();
-  const [listingRes, photosRes] = await Promise.all([
-    supabase
-      .from("listing")
-      .select("*")
-      .eq("unit", unit)
-      .maybeSingle(),
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [listingRes, photosRes, viewsRes, leadsRes] = await Promise.all([
+    supabase.from("listing").select("*").eq("unit", unit).maybeSingle(),
     supabase
       .from("vehicle_photo")
       .select("*")
       .eq("unit", unit)
       .order("position", { ascending: true }),
+    supabase
+      .from("view_event")
+      .select("unit")
+      .eq("unit", unit)
+      .gte("created_at", sevenDaysAgo),
+    supabase
+      .from("lead")
+      .select("unit")
+      .eq("unit", unit)
+      .gte("created_at", sevenDaysAgo),
   ]);
 
   if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
@@ -105,6 +136,8 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     hidden: (l as { hidden?: boolean }).hidden ?? false,
     photo_count: photos.length,
     has_hero: photos.some((p) => p.is_hero),
+    views_7d: viewsRes.data?.length ?? 0,
+    leads_7d: leadsRes.data?.length ?? 0,
     photos,
   };
 }

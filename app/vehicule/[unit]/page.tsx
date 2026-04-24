@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
+import { logVehicleView } from "@/lib/stats/views";
 import AppHeader from "@/app/app-header";
 import Gallery from "./gallery";
 import LeadForm from "./lead-form";
@@ -54,6 +56,15 @@ export default async function Page({
   const { unit } = await params;
   const detail = await fetchPublicListingByUnit(decodeURIComponent(unit));
   if (!detail) notFound();
+
+  const hdrs = await headers();
+  // Fire-and-forget — ne pas attendre pour render.
+  void logVehicleView({
+    unit: detail.unit,
+    userAgent: hdrs.get("user-agent"),
+    ip: hdrs.get("x-forwarded-for")?.split(",")[0].trim() ?? hdrs.get("x-real-ip"),
+    referrer: hdrs.get("referer"),
+  });
 
   return (
     <main className="min-h-screen bg-gray-50">

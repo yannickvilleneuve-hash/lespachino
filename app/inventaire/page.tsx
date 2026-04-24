@@ -21,6 +21,9 @@ export default async function InventairePage() {
               {rows.length} véhicule{rows.length > 1 ? "s" : ""} actif{rows.length > 1 ? "s" : ""}
             </span>
             {lespacReady && <SyncLespacButton />}
+            <Link href="/inventaire/leads" className="text-xs text-white/70 hover:text-white">
+              Leads
+            </Link>
             <Link href="/dashboard" className="text-xs text-white/70 hover:text-white">
               Dashboard
             </Link>
