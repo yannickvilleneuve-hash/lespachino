@@ -77,6 +77,76 @@ export async function setHidden(unit: string, hidden: boolean): Promise<void> {
   revalidatePath(`/inventaire/${unit}`);
 }
 
+export interface BulkPublishResult {
+  published: number;
+  skipped: number;
+  reasons: Record<PublicationError, number>;
+}
+
+/**
+ * Passe en bulk tous les listings non-publiés dont la data est complète.
+ * Skip ceux qui ne passent pas validatePublication; renvoie le décompte
+ * des raisons pour feedback utilisateur.
+ */
+export async function bulkPublishReady(): Promise<BulkPublishResult> {
+  const { supabase, userId } = await requireUser();
+
+  const [listingsRes, photosRes] = await Promise.all([
+    supabase
+      .from("listing")
+      .select("unit, price_cad, description_fr, is_published, hidden"),
+    supabase.from("vehicle_photo").select("unit, is_hero"),
+  ]);
+  if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
+  if (photosRes.error) throw new Error(`photos: ${photosRes.error.message}`);
+
+  const photosByUnit = new Map<string, { is_hero: boolean }[]>();
+  for (const p of photosRes.data) {
+    const arr = photosByUnit.get(p.unit) ?? [];
+    arr.push({ is_hero: p.is_hero });
+    photosByUnit.set(p.unit, arr);
+  }
+
+  const reasons: Record<PublicationError, number> = {
+    price_missing: 0,
+    description_missing: 0,
+    no_photos: 0,
+    no_hero: 0,
+  };
+
+  const toPublish: string[] = [];
+  let skipped = 0;
+
+  for (const l of listingsRes.data) {
+    if (l.is_published || l.hidden) {
+      skipped += 1;
+      continue;
+    }
+    const err = validatePublication({
+      price_cad: l.price_cad,
+      description_fr: l.description_fr,
+      photos: photosByUnit.get(l.unit) ?? [],
+    });
+    if (err) {
+      reasons[err] += 1;
+      skipped += 1;
+      continue;
+    }
+    toPublish.push(l.unit);
+  }
+
+  if (toPublish.length > 0) {
+    const { error } = await supabase
+      .from("listing")
+      .update({ is_published: true, updated_by: userId })
+      .in("unit", toPublish);
+    if (error) throw new Error(`bulk update: ${error.message}`);
+  }
+
+  revalidatePath("/inventaire");
+  return { published: toPublish.length, skipped, reasons };
+}
+
 export type UploadPhotoResult =
   | { ok: true; id: string }
   | { ok: false; error: "limit_reached" | "invalid_type" | "too_big" | "no_file" };
