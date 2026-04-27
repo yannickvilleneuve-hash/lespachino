@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ventes — Centre du camion Hino",
   description: "Gestion interne inventaire Hino",
+  verification: {
+    google: "4lqhQgi1a5TP3JPatZz8wE7FuHXXw6MMGuHk_04m_G8",
+  },
 };
 
 export default function RootLayout({
