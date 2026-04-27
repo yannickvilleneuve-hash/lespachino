@@ -44,7 +44,7 @@ export async function syncAllToWix(): Promise<SyncResult[]> {
           });
           continue;
         }
-        const photoUrls = detail.photos.map((p) => publicPhotoUrl(p.storage_path));
+        const photoUrls = detail.photos.map((p) => publicPhotoUrl(p.storage_path, "medium"));
         const heroPhoto = detail.photos.find((p) => p.is_hero) ?? detail.photos[0];
         const item: WixInventoryItem = {
           _id: wixId,
@@ -60,7 +60,7 @@ export async function syncAllToWix(): Promise<SyncResult[]> {
           priceCad: detail.price_cad,
           descriptionFr: detail.description_fr,
           state: mapState(detail.category),
-          heroImage: publicPhotoUrl(heroPhoto.storage_path),
+          heroImage: publicPhotoUrl(heroPhoto.storage_path, "medium"),
           imageUrls: photoUrls,
           detailUrl: `${BASE_SITE_URL}/vehicule/${encodeURIComponent(detail.unit)}`,
           dateAdded: detail.date_added ? new Date(detail.date_added).toISOString() : null,

@@ -23,7 +23,7 @@ export default async function EditPage({
   const { unit } = await params;
   const detail = await fetchVehicleByUnit(decodeURIComponent(unit));
   if (!detail) notFound();
-  const photosWithUrls = await withSignedUrls(detail.photos);
+  const photosWithUrls = await withSignedUrls(detail.photos, "thumb");
 
   return (
     <main className="min-h-screen bg-gray-50">

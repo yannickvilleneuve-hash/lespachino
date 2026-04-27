@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listActiveVehicles, getVehicleByUnit, type Vehicle } from "@/lib/serti/wgi";
+import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -16,13 +17,13 @@ export interface PublicListing extends PublicVehicle {
 }
 
 export interface PublicListingDetail extends PublicListing {
-  photos: { url: string; is_hero: boolean }[];
+  photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
 }
 
-export function publicPhotoUrl(storagePath: string): string {
+export function publicPhotoUrl(storagePath: string, variant: PhotoVariant = "original"): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!base) throw new Error("NEXT_PUBLIC_SUPABASE_URL requis");
-  return `${base}/storage/v1/object/public/vehicle-photos/${storagePath}`;
+  return `${base}/storage/v1/object/public/vehicle-photos/${variantPath(storagePath, variant)}`;
 }
 
 function stripCost<V extends Vehicle>(v: V): PublicVehicle {
@@ -70,7 +71,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       ...stripCost(v),
       price_cad: l.price_cad,
       description_fr: l.description_fr,
-      hero_url: publicPhotoUrl(hero.storage_path),
+      hero_url: publicPhotoUrl(hero.storage_path, "medium"),
       photo_count: photos.length,
     });
   }
@@ -101,7 +102,9 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
   if (photosRes.data.length === 0) return null;
 
   const photos = photosRes.data.map((p) => ({
-    url: publicPhotoUrl(p.storage_path),
+    url_medium: publicPhotoUrl(p.storage_path, "medium"),
+    url_thumb: publicPhotoUrl(p.storage_path, "thumb"),
+    url_original: publicPhotoUrl(p.storage_path, "original"),
     is_hero: p.is_hero,
   }));
   const hero = photos.find((p) => p.is_hero) ?? photos[0];
@@ -110,7 +113,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
     ...stripCost(vehicle),
     price_cad: l.price_cad,
     description_fr: l.description_fr,
-    hero_url: hero.url,
+    hero_url: hero.url_medium,
     photos,
     photo_count: photos.length,
   };

@@ -50,7 +50,7 @@ export async function syncAllToLespac(): Promise<SyncResult[]> {
         }
         const photosWithUrls = detail.photos.map((p) => ({
           ...p,
-          url: publicPhotoUrl(p.storage_path),
+          url: publicPhotoUrl(p.storage_path, "medium"),
         }));
         const payload = mapToLespacListing({
           detail,

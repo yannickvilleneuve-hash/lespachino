@@ -7,7 +7,7 @@ export default function Gallery({
   photos,
   alt,
 }: {
-  photos: { url: string; is_hero: boolean }[];
+  photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
   alt: string;
 }) {
   const heroIndex = Math.max(
@@ -19,9 +19,15 @@ export default function Gallery({
 
   return (
     <div>
-      <div className="relative aspect-[4/3] bg-gray-100 rounded overflow-hidden border">
+      <a
+        href={photos[active].url_original}
+        target="_blank"
+        rel="noreferrer"
+        className="block relative aspect-[4/3] bg-gray-100 rounded overflow-hidden border"
+        title="Voir en haute résolution"
+      >
         <Image
-          src={photos[active].url}
+          src={photos[active].url_medium}
           alt={alt}
           fill
           sizes="(max-width: 1024px) 100vw, 66vw"
@@ -29,12 +35,12 @@ export default function Gallery({
           priority
           unoptimized
         />
-      </div>
+      </a>
       {photos.length > 1 && (
         <div className="flex gap-2 mt-2 overflow-x-auto">
           {photos.map((p, i) => (
             <button
-              key={p.url}
+              key={p.url_thumb}
               type="button"
               onClick={() => setActive(i)}
               className={
@@ -43,7 +49,7 @@ export default function Gallery({
               }
             >
               <Image
-                src={p.url}
+                src={p.url_thumb}
                 alt=""
                 fill
                 sizes="96px"

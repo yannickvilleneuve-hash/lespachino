@@ -12,6 +12,27 @@ export type Database = {
   };
   public: {
     Tables: {
+      app_user: {
+        Row: {
+          created_at: string;
+          email: string;
+          full_name: string | null;
+          invited_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          full_name?: string | null;
+          invited_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          full_name?: string | null;
+          invited_by?: string | null;
+        };
+        Relationships: [];
+      };
       lead: {
         Row: {
           created_at: string;

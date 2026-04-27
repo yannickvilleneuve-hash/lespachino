@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listingFormSchema, type ListingFormInput } from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
+import { generateVariants, variantPath } from "@/lib/photos/resize";
 
 const PHOTO_BUCKET = "vehicle-photos";
 const MAX_PHOTOS_PER_UNIT = 15;
@@ -170,10 +171,30 @@ export async function uploadPhoto(unit: string, formData: FormData): Promise<Upl
   const id = crypto.randomUUID();
   const path = `${unit}/${id}.${ext}`;
 
-  const upload = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .upload(path, file, { contentType: file.type });
-  if (upload.error) throw new Error(`storage upload: ${upload.error.message}`);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  let variants;
+  try {
+    variants = await generateVariants(buffer);
+  } catch (err) {
+    throw new Error(`resize: ${(err as Error).message}`);
+  }
+  const thumbPath = variantPath(path, "thumb");
+  const mediumPath = variantPath(path, "medium");
+
+  const [origUp, thumbUp, medUp] = await Promise.all([
+    supabase.storage.from(PHOTO_BUCKET).upload(path, buffer, { contentType: file.type }),
+    supabase.storage
+      .from(PHOTO_BUCKET)
+      .upload(thumbPath, variants.thumb, { contentType: "image/webp" }),
+    supabase.storage
+      .from(PHOTO_BUCKET)
+      .upload(mediumPath, variants.medium, { contentType: "image/webp" }),
+  ]);
+  const uploadErr = origUp.error ?? thumbUp.error ?? medUp.error;
+  if (uploadErr) {
+    await supabase.storage.from(PHOTO_BUCKET).remove([path, thumbPath, mediumPath]);
+    throw new Error(`storage upload: ${uploadErr.message}`);
+  }
 
   const isFirst = (count ?? 0) === 0;
   const { error: insertError } = await supabase.from("vehicle_photo").insert({
@@ -185,7 +206,7 @@ export async function uploadPhoto(unit: string, formData: FormData): Promise<Upl
     uploaded_by: userId,
   });
   if (insertError) {
-    await supabase.storage.from(PHOTO_BUCKET).remove([path]);
+    await supabase.storage.from(PHOTO_BUCKET).remove([path, thumbPath, mediumPath]);
     throw new Error(`photo insert: ${insertError.message}`);
   }
 
@@ -207,7 +228,11 @@ export async function deletePhoto(id: string): Promise<void> {
   const { error: delRowError } = await supabase.from("vehicle_photo").delete().eq("id", id);
   if (delRowError) throw new Error(`row delete: ${delRowError.message}`);
 
-  await supabase.storage.from(PHOTO_BUCKET).remove([photo.storage_path]);
+  await supabase.storage.from(PHOTO_BUCKET).remove([
+    photo.storage_path,
+    variantPath(photo.storage_path, "thumb"),
+    variantPath(photo.storage_path, "medium"),
+  ]);
 
   if (photo.is_hero) {
     const { data: next } = await supabase
