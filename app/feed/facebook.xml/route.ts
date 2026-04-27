@@ -1,22 +1,21 @@
 import { fetchPublicListings } from "@/lib/listings/public";
-import { buildGoogleVlaFeed } from "@/lib/feeds/google-vla";
+import { buildMetaVehicleFeed } from "@/lib/feeds/meta-vehicle";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 /**
- * Facebook Marketplace / Meta Automotive Inventory Ads catalog feed.
- * Même format que /feed/vehicles.xml (Google VLA) — Meta accepte le namespace
- * `g:` nativement. Route dédiée pour que l'URL soit clairement identifiable
- * dans Meta Commerce Manager.
+ * Meta Commerce Manager — Vehicles catalog feed.
+ * RSS 2.0 sans namespace `g:` (refusé par Meta en pratique). Champs Meta
+ * natifs uniquement.
  */
 export async function GET(request: Request) {
   const listings = await fetchPublicListings();
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
-  const xml = buildGoogleVlaFeed({ origin, listings });
+  const xml = buildMetaVehicleFeed({ origin, listings });
   return new Response(xml, {
     headers: {
-      "Content-Type": "application/xml; charset=utf-8",
+      "Content-Type": "application/rss+xml; charset=utf-8",
       "Cache-Control": "public, max-age=300, s-maxage=300",
     },
   });
