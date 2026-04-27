@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isEmailAllowed } from "@/lib/auth/whitelist";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -31,6 +32,16 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  // User retiré de la whitelist → coupe la session immédiatement.
+  if (user?.email && !(await isEmailAllowed(user.email))) {
+    await supabase.auth.signOut();
+    if (needsAuth) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
   }
 
   if (path === "/login" && user) {

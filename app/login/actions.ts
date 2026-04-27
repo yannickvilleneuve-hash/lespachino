@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendGraphEmail } from "@/lib/graph/mail";
+import { isEmailAllowed } from "@/lib/auth/whitelist";
 
 export type LoginResult =
   | { ok: true }
@@ -35,6 +36,13 @@ export async function sendMagicLink(formData: FormData): Promise<LoginResult> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
     return { ok: false, error: "Courriel invalide" };
+  }
+
+  if (!(await isEmailAllowed(email))) {
+    return {
+      ok: false,
+      error: "Cette adresse n'a pas accès. Contacte un administrateur.",
+    };
   }
 
   const hdrs = await headers();
