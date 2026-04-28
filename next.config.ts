@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "hino1-thinkcentre-m93p.tail0e1ea8.ts.net",
     "100.107.207.88",
+    "ventes.hinochicoutimi.com",
+    "feeds.hinochicoutimi.com",
   ],
   async headers() {
     return [
