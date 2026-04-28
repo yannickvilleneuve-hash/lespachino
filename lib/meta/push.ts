@@ -20,16 +20,21 @@ export type MetaPushResult =
 export async function triggerMetaFeedRefresh(): Promise<MetaPushResult> {
   const token = process.env.META_ACCESS_TOKEN;
   const feedId = process.env.META_FEED_ID;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (!token || !feedId) {
     return { action: "skipped", reason: "META_ACCESS_TOKEN ou META_FEED_ID absent" };
+  }
+  if (!siteUrl) {
+    return { action: "skipped", reason: "NEXT_PUBLIC_SITE_URL absent" };
   }
   try {
     const resp = await fetch(`${GRAPH_API}/${feedId}/uploads`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
       },
+      body: new URLSearchParams({ url: `${siteUrl}/feed/facebook.csv` }).toString(),
     });
     const body = await resp.text();
     if (!resp.ok) {
