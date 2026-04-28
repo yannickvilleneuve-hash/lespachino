@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getVehicleByUnit, listActiveVehicles, type Vehicle } from "@/lib/serti/wgi";
+import { publicPhotoUrl } from "@/lib/listings/public";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -11,6 +12,7 @@ export interface InventoryRow extends Vehicle {
   channels: string[];
   photo_count: number;
   has_hero: boolean;
+  hero_url: string | null;
   hidden: boolean;
   views_7d: number;
   leads_7d: number;
@@ -46,7 +48,11 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       .from("listing")
       .select("unit, price_cad, is_published, channels, hidden")
       .in("unit", units),
-    supabase.from("vehicle_photo").select("unit, is_hero").in("unit", units),
+    supabase
+      .from("vehicle_photo")
+      .select("unit, is_hero, storage_path, position")
+      .in("unit", units)
+      .order("position", { ascending: true }),
     supabase
       .from("view_event")
       .select("unit")
@@ -65,11 +71,20 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   if (leadsRes.error) throw new Error(`leads fetch: ${leadsRes.error.message}`);
 
   const listingMap = new Map(listingsRes.data.map((l) => [l.unit, l]));
-  const photoByUnit = new Map<string, { count: number; hero: boolean }>();
+  const photoByUnit = new Map<
+    string,
+    { count: number; hero: boolean; hero_path: string | null; first_path: string | null }
+  >();
   for (const p of photosRes.data) {
-    const entry = photoByUnit.get(p.unit) ?? { count: 0, hero: false };
+    const entry =
+      photoByUnit.get(p.unit) ??
+      { count: 0, hero: false, hero_path: null, first_path: null };
     entry.count += 1;
-    if (p.is_hero) entry.hero = true;
+    if (p.is_hero) {
+      entry.hero = true;
+      entry.hero_path = p.storage_path;
+    }
+    if (entry.first_path === null) entry.first_path = p.storage_path;
     photoByUnit.set(p.unit, entry);
   }
 
@@ -81,6 +96,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   return vehicles.map((v) => {
     const l = listingMap.get(v.unit);
     const photos = photoByUnit.get(v.unit);
+    const heroPath = photos?.hero_path ?? photos?.first_path ?? null;
     return {
       ...v,
       price_cad: l?.price_cad ?? 0,
@@ -88,6 +104,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       channels: l?.channels ?? CHANNEL_DEFAULTS,
       photo_count: photos?.count ?? 0,
       has_hero: photos?.hero ?? false,
+      hero_url: heroPath ? publicPhotoUrl(heroPath, "thumb") : null,
       hidden: l?.hidden ?? false,
       views_7d: viewCount.get(v.unit) ?? 0,
       leads_7d: leadCount.get(v.unit) ?? 0,
@@ -136,6 +153,10 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     hidden: (l as { hidden?: boolean }).hidden ?? false,
     photo_count: photos.length,
     has_hero: photos.some((p) => p.is_hero),
+    hero_url: (() => {
+      const hero = photos.find((p) => p.is_hero) ?? photos[0];
+      return hero ? publicPhotoUrl(hero.storage_path, "thumb") : null;
+    })(),
     views_7d: viewsRes.data?.length ?? 0,
     leads_7d: leadsRes.data?.length ?? 0,
     photos,
