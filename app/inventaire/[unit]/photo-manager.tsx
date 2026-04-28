@@ -43,7 +43,10 @@ export default function PhotoManager({
   const [photos, setPhotos] = useState(initialPhotos);
   const [msg, setMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -62,20 +65,59 @@ export default function PhotoManager({
     });
   }
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
+  async function uploadFiles(files: File[]) {
     if (files.length === 0) return;
     setMsg(null);
+    setUploadProgress({ done: 0, total: files.length });
+    let i = 0;
     for (const file of files) {
       const fd = new FormData();
       fd.append("file", file);
       const result = await uploadPhoto(unit, fd);
+      i += 1;
+      setUploadProgress({ done: i, total: files.length });
       if (!result.ok) {
         setMsg(UPLOAD_ERROR_MSG[result.error]);
         break;
       }
     }
+    setUploadProgress(null);
+  }
+
+  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    await uploadFiles(files);
+  }
+
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  }
+
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) setIsDragging(false);
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files ?? []).filter((f) =>
+      f.type.startsWith("image/"),
+    );
+    await uploadFiles(files);
   }
 
   function onDelete(id: string) {
@@ -101,12 +143,21 @@ export default function PhotoManager({
   }
 
   return (
-    <div>
+    <div
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={
+        "relative " +
+        (isDragging ? "ring-4 ring-blue-400 ring-offset-2 rounded" : "")
+      }
+    >
       <div className="flex items-center gap-3 mb-3">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={photos.length >= 15 || isPending}
+          disabled={photos.length >= 15 || isPending || uploadProgress !== null}
           className="bg-blue-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50"
         >
           + Ajouter photos
@@ -120,11 +171,26 @@ export default function PhotoManager({
           className="hidden"
         />
         <span className="text-sm text-gray-500">{photos.length} / 15</span>
+        {uploadProgress && (
+          <span className="text-sm text-blue-700">
+            Upload {uploadProgress.done} / {uploadProgress.total}…
+          </span>
+        )}
+        <span className="text-xs text-gray-400 ml-auto hidden sm:inline">
+          ou glisser/déposer ici
+        </span>
       </div>
+      {isDragging && (
+        <div className="absolute inset-0 bg-blue-50/80 border-2 border-dashed border-blue-400 rounded flex items-center justify-center pointer-events-none z-10">
+          <p className="text-blue-700 font-semibold text-lg">📁 Lâcher les photos ici</p>
+        </div>
+      )}
       {msg && <p className="text-sm text-red-600 mb-2">{msg}</p>}
 
       {photos.length === 0 ? (
-        <p className="text-sm text-gray-500">Aucune photo. Upload pour commencer.</p>
+        <p className="text-sm text-gray-500 border-2 border-dashed border-gray-300 rounded p-8 text-center">
+          Aucune photo. Glisse-dépose des images ou clique « + Ajouter photos ».
+        </p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={photos.map((p) => p.id)} strategy={horizontalListSortingStrategy}>

@@ -87,6 +87,15 @@ export default async function EditPage({
               ),
             }}
             isPublished={detail.is_published}
+            vehicle={{
+              year: detail.year,
+              make: detail.make,
+              model: detail.model,
+              km: detail.km,
+              color: detail.color,
+              category: detail.category,
+              cost: detail.cost,
+            }}
           />
           <div className="mt-6 pt-6 border-t">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
