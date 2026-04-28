@@ -7,6 +7,7 @@ import { logVehicleView } from "@/lib/stats/views";
 import AppHeader from "@/app/app-header";
 import Gallery from "./gallery";
 import LeadForm from "./lead-form";
+import PixelViewContent from "./pixel-view";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,7 @@ export default async function Page({
 
   return (
     <main className="min-h-screen bg-gray-50">
+      <PixelViewContent unit={detail.unit} price={detail.price_cad} />
       <AppHeader
         title={`${detail.year} ${detail.make} ${detail.model}`}
         right={

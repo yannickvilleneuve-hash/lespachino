@@ -16,6 +16,9 @@ export default function LeadForm({ unit }: { unit: string }) {
       const res = await submitLead(fd);
       if (res.ok) {
         setStatus("sent");
+        if (typeof window !== "undefined" && window.fbq) {
+          window.fbq("track", "Lead", { content_ids: [unit], content_type: "vehicle" });
+        }
         (e.target as HTMLFormElement).reset();
       } else {
         setErr(res.error);
