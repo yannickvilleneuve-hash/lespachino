@@ -5,6 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { listingFormSchema, type ListingFormInput } from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
 import { generateVariants, variantPath } from "@/lib/photos/resize";
+import { logActivity } from "@/lib/audit/log";
+import { isWixReady } from "@/lib/wix/config";
+import { syncOneToWix } from "@/lib/wix/sync";
+import { isLespacReady } from "@/lib/lespac/config";
+import { syncOneToLespac } from "@/lib/lespac/sync";
+import { triggerMetaFeedRefresh, isMetaPushReady } from "@/lib/meta/push";
+import { triggerGoogleFeedRefresh, isGooglePushReady } from "@/lib/google/push";
 
 const PHOTO_BUCKET = "vehicle-photos";
 const MAX_PHOTOS_PER_UNIT = 15;
@@ -15,12 +22,16 @@ async function requireUser() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error("Non authentifié");
-  return { supabase, userId: data.user.id };
+  return {
+    supabase,
+    userId: data.user.id,
+    userEmail: data.user.email ?? null,
+  };
 }
 
 export async function upsertListing(unit: string, input: ListingFormInput): Promise<void> {
   const parsed = listingFormSchema.parse(input);
-  const { supabase, userId } = await requireUser();
+  const { supabase, userId, userEmail } = await requireUser();
   const { error } = await supabase.from("listing").upsert({
     unit,
     price_cad: parsed.price_cad,
@@ -29,6 +40,17 @@ export async function upsertListing(unit: string, input: ListingFormInput): Prom
     updated_by: userId,
   });
   if (error) throw new Error(`upsertListing: ${error.message}`);
+  await logActivity({
+    userEmail,
+    action: "edit_listing",
+    targetType: "listing",
+    targetId: unit,
+    details: {
+      price_cad: parsed.price_cad,
+      description_fr: parsed.description_fr,
+      channels: parsed.channels,
+    },
+  });
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
 }
@@ -37,7 +59,7 @@ export async function togglePublished(
   unit: string,
   next: boolean,
 ): Promise<{ ok: true } | { ok: false; error: PublicationError }> {
-  const { supabase, userId } = await requireUser();
+  const { supabase, userId, userEmail } = await requireUser();
 
   if (next) {
     const [listingRes, photosRes] = await Promise.all([
@@ -61,19 +83,126 @@ export async function togglePublished(
     updated_by: userId,
   });
   if (error) throw new Error(`togglePublished: ${error.message}`);
+  await logActivity({
+    userEmail,
+    action: next ? "publish" : "unpublish",
+    targetType: "listing",
+    targetId: unit,
+  });
+  // Sync auto vers les canaux configurés (best-effort, ne bloque pas la publication).
+  void autoSyncChannels(unit, next, userEmail);
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
   return { ok: true };
 }
 
+/**
+ * Push un listing vers tous les canaux disponibles.
+ * Wix + Lespac: per-listing instant API call.
+ * Meta + Google: trigger refresh global du feed (re-pulls dans minutes).
+ * Fire-and-forget: on log les résultats mais on n'échoue pas le caller.
+ */
+async function autoSyncChannels(
+  unit: string,
+  shouldPublish: boolean,
+  userEmail: string | null,
+): Promise<void> {
+  if (isWixReady()) {
+    try {
+      const result = await syncOneToWix(unit, shouldPublish);
+      await logActivity({
+        userEmail,
+        action: "sync_wix",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: result.action, error: result.error },
+      });
+    } catch (err) {
+      await logActivity({
+        userEmail,
+        action: "sync_wix",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: "error", error: (err as Error).message },
+      });
+    }
+  }
+  if (isLespacReady()) {
+    try {
+      const result = await syncOneToLespac(unit, shouldPublish);
+      await logActivity({
+        userEmail,
+        action: "sync_lespac",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: result.action, error: result.error },
+      });
+    } catch (err) {
+      await logActivity({
+        userEmail,
+        action: "sync_lespac",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: "error", error: (err as Error).message },
+      });
+    }
+  }
+  if (isMetaPushReady()) {
+    try {
+      const result = await triggerMetaFeedRefresh();
+      await logActivity({
+        userEmail,
+        action: "sync_meta",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: result.action, error: "error" in result ? result.error : undefined },
+      });
+    } catch (err) {
+      await logActivity({
+        userEmail,
+        action: "sync_meta",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: "error", error: (err as Error).message },
+      });
+    }
+  }
+  if (isGooglePushReady()) {
+    try {
+      const result = await triggerGoogleFeedRefresh();
+      await logActivity({
+        userEmail,
+        action: "sync_google",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: result.action, error: "error" in result ? result.error : undefined },
+      });
+    } catch (err) {
+      await logActivity({
+        userEmail,
+        action: "sync_google",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: "error", error: (err as Error).message },
+      });
+    }
+  }
+}
+
 export async function setHidden(unit: string, hidden: boolean): Promise<void> {
-  const { supabase, userId } = await requireUser();
+  const { supabase, userId, userEmail } = await requireUser();
   const { error } = await supabase.from("listing").upsert({
     unit,
     hidden,
     updated_by: userId,
   });
   if (error) throw new Error(`setHidden: ${error.message}`);
+  await logActivity({
+    userEmail,
+    action: hidden ? "hide_listing" : "show_listing",
+    targetType: "listing",
+    targetId: unit,
+  });
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
 }
@@ -90,7 +219,7 @@ export interface BulkPublishResult {
  * des raisons pour feedback utilisateur.
  */
 export async function bulkPublishReady(): Promise<BulkPublishResult> {
-  const { supabase, userId } = await requireUser();
+  const { supabase, userId, userEmail } = await requireUser();
 
   const [listingsRes, photosRes] = await Promise.all([
     supabase
@@ -144,6 +273,17 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
     if (error) throw new Error(`bulk update: ${error.message}`);
   }
 
+  await logActivity({
+    userEmail,
+    action: "bulk_publish",
+    targetType: "listing",
+    details: {
+      published: toPublish.length,
+      skipped,
+      reasons,
+      units: toPublish,
+    },
+  });
   revalidatePath("/inventaire");
   return { published: toPublish.length, skipped, reasons };
 }
@@ -158,7 +298,7 @@ export async function uploadPhoto(unit: string, formData: FormData): Promise<Upl
   if (!ALLOWED_MIME.has(file.type)) return { ok: false, error: "invalid_type" };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: "too_big" };
 
-  const { supabase, userId } = await requireUser();
+  const { supabase, userId, userEmail } = await requireUser();
 
   const { count, error: countError } = await supabase
     .from("vehicle_photo")
@@ -210,13 +350,20 @@ export async function uploadPhoto(unit: string, formData: FormData): Promise<Upl
     throw new Error(`photo insert: ${insertError.message}`);
   }
 
+  await logActivity({
+    userEmail,
+    action: "upload_photo",
+    targetType: "photo",
+    targetId: id,
+    details: { unit, hero: isFirst, size: file.size, type: file.type },
+  });
   revalidatePath(`/inventaire/${unit}`);
   revalidatePath("/inventaire");
   return { ok: true, id };
 }
 
 export async function deletePhoto(id: string): Promise<void> {
-  const { supabase } = await requireUser();
+  const { supabase, userEmail } = await requireUser();
 
   const { data: photo, error: fetchError } = await supabase
     .from("vehicle_photo")
@@ -247,12 +394,19 @@ export async function deletePhoto(id: string): Promise<void> {
     }
   }
 
+  await logActivity({
+    userEmail,
+    action: "delete_photo",
+    targetType: "photo",
+    targetId: id,
+    details: { unit: photo.unit, was_hero: photo.is_hero },
+  });
   revalidatePath(`/inventaire/${photo.unit}`);
   revalidatePath("/inventaire");
 }
 
 export async function reorderPhotos(unit: string, orderedIds: string[]): Promise<void> {
-  const { supabase } = await requireUser();
+  const { supabase, userEmail } = await requireUser();
   for (let i = 0; i < orderedIds.length; i += 1) {
     const { error } = await supabase
       .from("vehicle_photo")
@@ -261,11 +415,18 @@ export async function reorderPhotos(unit: string, orderedIds: string[]): Promise
       .eq("unit", unit);
     if (error) throw new Error(`reorder ${orderedIds[i]}: ${error.message}`);
   }
+  await logActivity({
+    userEmail,
+    action: "reorder_photos",
+    targetType: "listing",
+    targetId: unit,
+    details: { count: orderedIds.length },
+  });
   revalidatePath(`/inventaire/${unit}`);
 }
 
 export async function setHero(unit: string, id: string): Promise<void> {
-  const { supabase } = await requireUser();
+  const { supabase, userEmail } = await requireUser();
   const { error: unsetError } = await supabase
     .from("vehicle_photo")
     .update({ is_hero: false })
@@ -276,5 +437,12 @@ export async function setHero(unit: string, id: string): Promise<void> {
     .update({ is_hero: true })
     .eq("id", id);
   if (setError) throw new Error(`set hero: ${setError.message}`);
+  await logActivity({
+    userEmail,
+    action: "set_hero",
+    targetType: "photo",
+    targetId: id,
+    details: { unit },
+  });
   revalidatePath(`/inventaire/${unit}`);
 }

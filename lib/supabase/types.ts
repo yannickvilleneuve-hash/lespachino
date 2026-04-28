@@ -12,6 +12,36 @@ export type Database = {
   };
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string;
+          created_at: string;
+          details: Json;
+          id: string;
+          target_id: string | null;
+          target_type: string | null;
+          user_email: string | null;
+        };
+        Insert: {
+          action: string;
+          created_at?: string;
+          details?: Json;
+          id?: string;
+          target_id?: string | null;
+          target_type?: string | null;
+          user_email?: string | null;
+        };
+        Update: {
+          action?: string;
+          created_at?: string;
+          details?: Json;
+          id?: string;
+          target_id?: string | null;
+          target_type?: string | null;
+          user_email?: string | null;
+        };
+        Relationships: [];
+      };
       app_user: {
         Row: {
           created_at: string;

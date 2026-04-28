@@ -95,7 +95,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        <nav className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+        <nav className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           <Link
             href="/inventaire"
             className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
@@ -116,6 +116,13 @@ export default async function DashboardPage() {
           >
             <h3 className="font-semibold mb-1">Utilisateurs →</h3>
             <p className="text-xs text-gray-600">Inviter ou retirer un accès.</p>
+          </Link>
+          <Link
+            href="/dashboard/activity"
+            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
+          >
+            <h3 className="font-semibold mb-1">Journal →</h3>
+            <p className="text-xs text-gray-600">Qui a fait quoi, dernières 200 actions.</p>
           </Link>
           <Link
             href="/"

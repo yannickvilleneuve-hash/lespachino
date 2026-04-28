@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendGraphEmail } from "@/lib/graph/mail";
+import { logActivity } from "@/lib/audit/log";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -86,6 +87,13 @@ export async function inviteUser(formData: FormData): Promise<InviteResult> {
     return { ok: false, error: (err as Error).message };
   }
 
+  await logActivity({
+    userEmail: inviter,
+    action: "invite_user",
+    targetType: "app_user",
+    targetId: email,
+    details: { full_name: fullName },
+  });
   revalidatePath("/dashboard/users");
   return { ok: true };
 }
@@ -98,5 +106,11 @@ export async function removeUser(email: string): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin.from("app_user").delete().eq("email", email.toLowerCase());
   if (error) throw new Error(`remove: ${error.message}`);
+  await logActivity({
+    userEmail: me,
+    action: "remove_user",
+    targetType: "app_user",
+    targetId: email.toLowerCase(),
+  });
   revalidatePath("/dashboard/users");
 }
