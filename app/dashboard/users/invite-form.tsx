@@ -11,6 +11,7 @@ export default function InviteForm() {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    fd.append("origin", window.location.origin);
     const form = e.currentTarget;
     setStatus("idle");
     setMsg("");

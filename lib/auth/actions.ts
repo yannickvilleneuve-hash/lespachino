@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendGraphEmail } from "@/lib/graph/mail";
@@ -59,11 +58,10 @@ export async function inviteUser(formData: FormData): Promise<InviteResult> {
   });
   if (insertError) return { ok: false, error: `insert: ${insertError.message}` };
 
-  const hdrs = await headers();
-  const origin =
-    hdrs.get("origin") ??
-    (hdrs.get("referer") ? new URL(hdrs.get("referer")!).origin : null);
-  if (!origin) return { ok: false, error: "Origin inconnu" };
+  const origin = String(formData.get("origin") ?? "").trim();
+  if (!origin || !origin.startsWith("https://")) {
+    return { ok: false, error: "Origin invalide" };
+  }
 
   const { data, error: linkError } = await admin.auth.admin.generateLink({
     type: "magiclink",

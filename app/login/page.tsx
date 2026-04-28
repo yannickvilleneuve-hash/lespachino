@@ -14,6 +14,7 @@ export default function LoginPage() {
     e.preventDefault();
     setErr("");
     const fd = new FormData(e.currentTarget);
+    fd.append("origin", window.location.origin);
     startTransition(async () => {
       const result = await sendMagicLink(fd);
       if (result.ok) {

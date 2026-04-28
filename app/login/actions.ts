@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendGraphEmail } from "@/lib/graph/mail";
 import { isEmailAllowed } from "@/lib/auth/whitelist";
@@ -45,14 +44,12 @@ export async function sendMagicLink(formData: FormData): Promise<LoginResult> {
     };
   }
 
-  const hdrs = await headers();
-  // Origin = ce que le browser a envoyé (https://ventes.hinochicoutimi.com).
-  // Plus fiable que Host derrière Worker proxy + Tailscale Funnel qui peut
-  // retourner 0.0.0.0:3005 (bind address). Fallback referer.
-  const origin =
-    hdrs.get("origin") ??
-    (hdrs.get("referer") ? new URL(hdrs.get("referer")!).origin : null);
-  if (!origin) return { ok: false, error: "Origin inconnu" };
+  // L'origine vient du client via FormData (window.location.origin) —
+  // plus fiable que les headers derrière Worker proxy + Tailscale Funnel.
+  const origin = String(formData.get("origin") ?? "").trim();
+  if (!origin || !origin.startsWith("https://")) {
+    return { ok: false, error: "Origin invalide" };
+  }
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.generateLink({
