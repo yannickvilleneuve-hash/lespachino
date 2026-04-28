@@ -8,6 +8,18 @@ const nextConfig: NextConfig = {
     "ventes.hinochicoutimi.com",
     "feeds.hinochicoutimi.com",
   ],
+  experimental: {
+    serverActions: {
+      // Server Actions arrivent via Cloudflare Worker → x-forwarded-host
+      // n'égale pas Origin. Whitelist explicite des origines clientes.
+      allowedOrigins: [
+        "ventes.hinochicoutimi.com",
+        "feeds.hinochicoutimi.com",
+        "hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443",
+        "hino1-thinkcentre-m93p.tail0e1ea8.ts.net",
+      ],
+    },
+  },
   async headers() {
     return [
       {
