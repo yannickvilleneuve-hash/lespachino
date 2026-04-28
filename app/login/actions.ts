@@ -44,12 +44,9 @@ export async function sendMagicLink(formData: FormData): Promise<LoginResult> {
     };
   }
 
-  // L'origine vient du client via FormData (window.location.origin) —
-  // plus fiable que les headers derrière Worker proxy + Tailscale Funnel.
-  const origin = String(formData.get("origin") ?? "").trim();
-  if (!origin || !origin.startsWith("https://")) {
-    return { ok: false, error: "Origin invalide" };
-  }
+  // ADMIN_SITE_URL hardcoded — peu importe d'où le user fait la demande,
+  // on retourne toujours sur le domaine public officiel.
+  const origin = process.env.ADMIN_SITE_URL || "https://ventes.hinochicoutimi.com";
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.generateLink({

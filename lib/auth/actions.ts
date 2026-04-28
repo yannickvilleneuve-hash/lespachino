@@ -58,10 +58,7 @@ export async function inviteUser(formData: FormData): Promise<InviteResult> {
   });
   if (insertError) return { ok: false, error: `insert: ${insertError.message}` };
 
-  const origin = String(formData.get("origin") ?? "").trim();
-  if (!origin || !origin.startsWith("https://")) {
-    return { ok: false, error: "Origin invalide" };
-  }
+  const origin = process.env.ADMIN_SITE_URL || "https://ventes.hinochicoutimi.com";
 
   const { data, error: linkError } = await admin.auth.admin.generateLink({
     type: "magiclink",
