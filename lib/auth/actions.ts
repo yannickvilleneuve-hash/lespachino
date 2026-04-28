@@ -60,10 +60,10 @@ export async function inviteUser(formData: FormData): Promise<InviteResult> {
   if (insertError) return { ok: false, error: `insert: ${insertError.message}` };
 
   const hdrs = await headers();
-  const host = hdrs.get("host");
-  const proto = hdrs.get("x-forwarded-proto") ?? "http";
-  if (!host) return { ok: false, error: "Host inconnu" };
-  const origin = `${proto}://${host}`;
+  const origin =
+    hdrs.get("origin") ??
+    (hdrs.get("referer") ? new URL(hdrs.get("referer")!).origin : null);
+  if (!origin) return { ok: false, error: "Origin inconnu" };
 
   const { data, error: linkError } = await admin.auth.admin.generateLink({
     type: "magiclink",

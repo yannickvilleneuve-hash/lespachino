@@ -46,10 +46,13 @@ export async function sendMagicLink(formData: FormData): Promise<LoginResult> {
   }
 
   const hdrs = await headers();
-  const host = hdrs.get("host");
-  const proto = hdrs.get("x-forwarded-proto") ?? "http";
-  if (!host) return { ok: false, error: "Host inconnu" };
-  const origin = `${proto}://${host}`;
+  // Origin = ce que le browser a envoyé (https://ventes.hinochicoutimi.com).
+  // Plus fiable que Host derrière Worker proxy + Tailscale Funnel qui peut
+  // retourner 0.0.0.0:3005 (bind address). Fallback referer.
+  const origin =
+    hdrs.get("origin") ??
+    (hdrs.get("referer") ? new URL(hdrs.get("referer")!).origin : null);
+  if (!origin) return { ok: false, error: "Origin inconnu" };
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.generateLink({
