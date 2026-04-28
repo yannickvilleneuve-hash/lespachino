@@ -13,7 +13,7 @@ export default function AppHeader({
 }) {
   return (
     <header className="flex items-center gap-3 px-4 py-2 bg-slate-900 text-white">
-      <Link href="/" className="flex items-center gap-3">
+      <Link href="/inventaire" className="flex items-center gap-3">
         <Image
           src="/logo1.jpg"
           alt="Centre du camion Hino"
