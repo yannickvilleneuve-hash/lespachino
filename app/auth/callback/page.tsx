@@ -16,7 +16,9 @@ export default function AuthCallbackPage() {
     const errorDesc = params.get("error_description") || params.get("error");
 
     if (errorDesc) {
-      setMsg(`Erreur d'authentification : ${decodeURIComponent(errorDesc)}`);
+      queueMicrotask(() =>
+        setMsg(`Erreur d'authentification : ${decodeURIComponent(errorDesc)}`),
+      );
       const t = setTimeout(() => router.replace("/login?error=callback"), 2000);
       return () => clearTimeout(t);
     }
@@ -38,7 +40,7 @@ export default function AuthCallbackPage() {
           });
         return;
       }
-      setMsg("Lien invalide ou expiré.");
+      queueMicrotask(() => setMsg("Lien invalide ou expiré."));
       setTimeout(() => router.replace("/login?error=callback"), 1500);
       return;
     }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import type { PublicListing } from "@/lib/listings/public";
-import { ViewModeSwitcher, useViewMode, type ViewMode } from "./view-mode-switcher";
+import { ViewModeSwitcher, useViewMode } from "./view-mode-switcher";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",

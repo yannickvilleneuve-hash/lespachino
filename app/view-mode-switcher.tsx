@@ -1,27 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export type ViewMode = "grid" | "list" | "table";
 
 const STORAGE_PREFIX = "pacman-view-mode-";
+const EVENT = "pacman-view-mode-change";
 
-export function useViewMode(scope: string, defaultMode: ViewMode): [ViewMode, (m: ViewMode) => void] {
-  const [mode, setMode] = useState<ViewMode>(defaultMode);
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_PREFIX + scope);
-    if (stored === "grid" || stored === "list" || stored === "table") {
-      setMode(stored);
-    }
-  }, [scope]);
-  function update(next: ViewMode) {
-    setMode(next);
-    try {
-      localStorage.setItem(STORAGE_PREFIX + scope, next);
-    } catch {
-      // localStorage may be unavailable (SSR, private mode)
-    }
-  }
+function subscribe(callback: () => void) {
+  window.addEventListener(EVENT, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(EVENT, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+export function useViewMode(
+  scope: string,
+  defaultMode: ViewMode,
+): [ViewMode, (m: ViewMode) => void] {
+  const key = STORAGE_PREFIX + scope;
+  const getSnapshot = useCallback((): ViewMode => {
+    const stored = localStorage.getItem(key);
+    return stored === "grid" || stored === "list" || stored === "table"
+      ? stored
+      : defaultMode;
+  }, [key, defaultMode]);
+  const mode = useSyncExternalStore(subscribe, getSnapshot, () => defaultMode);
+  const update = useCallback(
+    (next: ViewMode) => {
+      try {
+        localStorage.setItem(key, next);
+        window.dispatchEvent(new Event(EVENT));
+      } catch {
+        // localStorage may be unavailable (private mode)
+      }
+    },
+    [key],
+  );
   return [mode, update];
 }
 
