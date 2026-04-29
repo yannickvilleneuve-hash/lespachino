@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import type { PublicListing } from "@/lib/listings/public";
 import { ViewModeSwitcher, useViewMode } from "./view-mode-switcher";
+import { VehiclePlaceholder } from "./vehicle-placeholder";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",
@@ -76,14 +77,18 @@ function Grille({ listings }: { listings: PublicListing[] }) {
             className="block bg-white border rounded shadow-sm hover:shadow-md transition-shadow overflow-hidden"
           >
             <div className="relative aspect-[4/3] bg-gray-100">
-              <Image
-                src={l.hero_url}
-                alt={`${l.make} ${l.model} ${l.year}`}
-                fill
-                sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
-                className="object-cover"
-                unoptimized
-              />
+              {l.hero_url ? (
+                <Image
+                  src={l.hero_url}
+                  alt={`${l.make} ${l.model} ${l.year}`}
+                  fill
+                  sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <VehiclePlaceholder className="absolute inset-0" />
+              )}
               {l.photo_count > 1 && (
                 <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded">
                   {l.photo_count} photos
@@ -123,14 +128,18 @@ function Liste({ listings }: { listings: PublicListing[] }) {
             className="flex items-center gap-4 px-3 py-2 hover:bg-blue-50"
           >
             <div className="relative w-[120px] h-[90px] flex-shrink-0 bg-gray-100 rounded overflow-hidden">
-              <Image
-                src={l.hero_url}
-                alt={`${l.make} ${l.model} ${l.year}`}
-                fill
-                sizes="120px"
-                className="object-cover"
-                unoptimized
-              />
+              {l.hero_url ? (
+                <Image
+                  src={l.hero_url}
+                  alt={`${l.make} ${l.model} ${l.year}`}
+                  fill
+                  sizes="120px"
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <VehiclePlaceholder className="absolute inset-0" />
+              )}
               {l.photo_count > 1 && (
                 <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-tl">
                   {l.photo_count} ph

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
 
 export default function Gallery({
   photos,
@@ -15,7 +16,11 @@ export default function Gallery({
     0,
   );
   const [active, setActive] = useState(heroIndex);
-  if (photos.length === 0) return null;
+  if (photos.length === 0) {
+    return (
+      <VehiclePlaceholder className="aspect-[4/3] rounded border" />
+    );
+  }
 
   return (
     <div>

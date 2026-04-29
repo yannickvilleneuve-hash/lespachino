@@ -1,4 +1,4 @@
-import { fetchPublicListings } from "@/lib/listings/public";
+import { fetchPublicListings, type PublicListing } from "@/lib/listings/public";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
@@ -47,7 +47,10 @@ function mapBodyStyle(category: string): string {
 }
 
 export async function GET(request: Request) {
-  const listings = await fetchPublicListings();
+  const all = await fetchPublicListings();
+  const listings = all.filter(
+    (l): l is PublicListing & { hero_url: string } => l.hero_url !== null,
+  );
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
 
   const headers = [

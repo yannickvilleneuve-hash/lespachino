@@ -46,7 +46,7 @@ function mapBodyStyle(category: string): string {
 
 export interface BuildFeedOptions {
   origin: string;
-  listings: PublicListing[];
+  listings: Array<PublicListing & { hero_url: string }>;
   title?: string;
   description?: string;
   address?: DealerAddress;

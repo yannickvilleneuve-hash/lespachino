@@ -12,13 +12,15 @@ export type PublicVehicle = Omit<Vehicle, "cost">;
 export interface PublicListing extends PublicVehicle {
   price_cad: number;
   description_fr: string;
-  hero_url: string;
+  hero_url: string | null;
   photo_count: number;
 }
 
 export interface PublicListingDetail extends PublicListing {
   photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
 }
+
+
 
 export function publicPhotoUrl(storagePath: string, variant: PhotoVariant = "original"): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -65,13 +67,12 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     const v = vehicleMap.get(l.unit);
     if (!v) continue; // SERTI a perdu le véhicule entre-temps
     const photos = photoByUnit.get(l.unit) ?? [];
-    if (photos.length === 0) continue;
     const hero = photos.find((p) => p.is_hero) ?? photos[0];
     rows.push({
       ...stripCost(v),
       price_cad: l.price_cad,
       description_fr: l.description_fr,
-      hero_url: publicPhotoUrl(hero.storage_path, "medium"),
+      hero_url: hero ? publicPhotoUrl(hero.storage_path, "medium") : null,
       photo_count: photos.length,
     });
   }
@@ -99,7 +100,6 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
   const l = listingRes.data;
   if (!l || !l.is_published || l.hidden) return null;
   if (!vehicle) return null;
-  if (photosRes.data.length === 0) return null;
 
   const photos = photosRes.data.map((p) => ({
     url_medium: publicPhotoUrl(p.storage_path, "medium"),
@@ -113,7 +113,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
     ...stripCost(vehicle),
     price_cad: l.price_cad,
     description_fr: l.description_fr,
-    hero_url: hero.url_medium,
+    hero_url: hero ? hero.url_medium : null,
     photos,
     photo_count: photos.length,
   };

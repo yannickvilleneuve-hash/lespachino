@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { Metadata } from "next";
 import { fetchPublicListings } from "@/lib/listings/public";
+import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 60;
@@ -47,14 +48,18 @@ export default async function EmbedCatalog() {
                   className="flex items-center gap-3 p-3 hover:bg-blue-50"
                 >
                   <div className="relative w-[110px] h-[82px] flex-shrink-0 bg-gray-100 rounded overflow-hidden">
-                    <Image
-                      src={l.hero_url}
-                      alt={`${l.make} ${l.model}`}
-                      fill
-                      sizes="110px"
-                      className="object-cover"
-                      unoptimized
-                    />
+                    {l.hero_url ? (
+                      <Image
+                        src={l.hero_url}
+                        alt={`${l.make} ${l.model}`}
+                        fill
+                        sizes="110px"
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <VehiclePlaceholder className="absolute inset-0" />
+                    )}
                     {l.photo_count > 1 && (
                       <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[10px] px-1 rounded-tl">
                         {l.photo_count}
