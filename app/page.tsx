@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchPublicListings } from "@/lib/listings/public";
 import AppHeader from "@/app/app-header";
@@ -23,26 +24,22 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const [listings, { data: auth }] = await Promise.all([
-    fetchPublicListings(),
-    (await createClient()).auth.getUser(),
-  ]);
-  const isAuth = !!auth.user;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) redirect("/inventaire");
+
+  const listings = await fetchPublicListings();
 
   return (
     <main className="min-h-screen bg-gray-50">
       <AppHeader
         title="Catalogue"
         right={
-          isAuth ? (
-            <Link href="/inventaire" className="text-xs text-white/70 hover:text-white">
-              Admin →
-            </Link>
-          ) : (
-            <Link href="/login" className="text-xs text-white/70 hover:text-white">
-              Connexion
-            </Link>
-          )
+          <Link href="/login" className="text-xs text-white/70 hover:text-white">
+            Connexion
+          </Link>
         }
       />
 

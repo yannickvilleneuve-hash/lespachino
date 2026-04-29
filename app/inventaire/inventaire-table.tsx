@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { setHidden } from "@/lib/listings/actions";
+import { setHidden, togglePublished } from "@/lib/listings/actions";
 import type { InventoryRow } from "@/lib/listings/queries";
 import { ViewModeSwitcher, useViewMode } from "@/app/view-mode-switcher";
 
@@ -167,6 +167,13 @@ const COLUMNS: ColumnDef[] = [
   },
 ];
 
+const PUBLICATION_ERR_FR: Record<string, string> = {
+  price_missing: "Prix manquant",
+  description_missing: "Description manquante",
+  no_photos: "Aucune photo",
+  no_hero: "Pas de photo principale",
+};
+
 const DEFAULT_DIR: Record<SortKey, SortDir> = {
   unit: "asc",
   vin: "asc",
@@ -274,6 +281,19 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
     });
   }
 
+  function onTogglePublished(row: InventoryRow) {
+    setErrMsg(null);
+    const next = !row.is_published;
+    startTransition(async () => {
+      try {
+        const res = await togglePublished(row.unit, next);
+        if (!res.ok) setErrMsg(`${row.unit} — ${PUBLICATION_ERR_FR[res.error]}`);
+      } catch (e) {
+        setErrMsg((e as Error).message);
+      }
+    });
+  }
+
   return (
     <div>
       <div className="flex flex-wrap gap-3 items-center px-6 py-3 bg-white border-b">
@@ -327,6 +347,7 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
           rows={sorted}
           onHide={onHide}
           onRestore={onRestore}
+          onTogglePublished={onTogglePublished}
           pending={pending}
         />
       )}
@@ -335,6 +356,7 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
           rows={sorted}
           onHide={onHide}
           onRestore={onRestore}
+          onTogglePublished={onTogglePublished}
           pending={pending}
         />
       )}
@@ -391,8 +413,16 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
                         ? "text-center"
                         : "text-left";
                   return (
-                    <td key={col.key} className={`px-3 py-1.5 ${align}`}>
-                      {col.render(r)}
+                    <td
+                      key={col.key}
+                      className={`px-3 py-1.5 ${align}`}
+                      onClick={col.key === "is_published" ? (e) => e.stopPropagation() : undefined}
+                    >
+                      {col.key === "is_published" ? (
+                        <PublishToggle row={r} onToggle={onTogglePublished} pending={pending} size="sm" />
+                      ) : (
+                        col.render(r)
+                      )}
                     </td>
                   );
                 })}
@@ -502,15 +532,41 @@ function HideButton({
   );
 }
 
-function PublishedBadge({ published }: { published: boolean }) {
-  return published ? (
-    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-800 font-medium">
-      Publié
-    </span>
-  ) : (
-    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">
-      Brouillon
-    </span>
+function PublishToggle({
+  row,
+  onToggle,
+  pending,
+  size = "md",
+}: {
+  row: InventoryRow;
+  onToggle: (r: InventoryRow) => void;
+  pending: boolean;
+  size?: "sm" | "md";
+}) {
+  const cls =
+    size === "sm"
+      ? "px-1.5 py-0.5 text-[10px]"
+      : "px-2 py-0.5 text-xs";
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle(row);
+      }}
+      disabled={pending}
+      title={row.is_published ? "Cliquer pour dépublier" : "Cliquer pour publier"}
+      className={
+        cls +
+        " rounded font-medium transition disabled:opacity-50 " +
+        (row.is_published
+          ? "bg-green-100 text-green-800 hover:bg-green-200"
+          : "bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-700")
+      }
+    >
+      {row.is_published ? "Publié" : "Brouillon"}
+    </button>
   );
 }
 
@@ -518,11 +574,13 @@ function AdminGrille({
   rows,
   onHide,
   onRestore,
+  onTogglePublished,
   pending,
 }: {
   rows: InventoryRow[];
   onHide: (r: InventoryRow) => void;
   onRestore: (r: InventoryRow) => void;
+  onTogglePublished: (r: InventoryRow) => void;
   pending: boolean;
 }) {
   if (rows.length === 0) {
@@ -558,7 +616,12 @@ function AdminGrille({
                 </div>
               )}
               <div className="absolute top-1.5 left-1.5">
-                <PublishedBadge published={r.is_published} />
+                <PublishToggle
+                  row={r}
+                  onToggle={onTogglePublished}
+                  pending={pending}
+                  size="sm"
+                />
               </div>
               {r.photo_count > 1 && (
                 <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
@@ -601,11 +664,13 @@ function AdminListe({
   rows,
   onHide,
   onRestore,
+  onTogglePublished,
   pending,
 }: {
   rows: InventoryRow[];
   onHide: (r: InventoryRow) => void;
   onRestore: (r: InventoryRow) => void;
+  onTogglePublished: (r: InventoryRow) => void;
   pending: boolean;
 }) {
   if (rows.length === 0) {
@@ -644,7 +709,12 @@ function AdminListe({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 text-xs">
                 <span className="font-mono text-blue-700">{r.unit}</span>
-                <PublishedBadge published={r.is_published} />
+                <PublishToggle
+                  row={r}
+                  onToggle={onTogglePublished}
+                  pending={pending}
+                  size="sm"
+                />
                 {r.date_added && (
                   <span className="text-gray-400 font-mono">{r.date_added}</span>
                 )}
