@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+process.env.NEXT_PUBLIC_SUPABASE_URL ||= "https://test.supabase.co";
+
 const supabaseMock = {
   listing: { data: [] as unknown[], error: null as unknown },
   photos: { data: [] as unknown[], error: null as unknown },
@@ -40,6 +42,7 @@ function tableHandle(table: string) {
       gte: () => ReturnType<typeof thenable>;
     };
     gte: () => ReturnType<typeof thenable>;
+    order: () => ReturnType<typeof thenable>;
     then: Promise<typeof data>["then"];
     catch: Promise<typeof data>["catch"];
   } {
@@ -53,6 +56,7 @@ function tableHandle(table: string) {
         gte: () => thenable(),
       }),
       gte: () => thenable(),
+      order: () => thenable(),
       then: p.then.bind(p),
       catch: p.catch.bind(p),
     };
