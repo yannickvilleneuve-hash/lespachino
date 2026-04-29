@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { setHidden, togglePublished } from "@/lib/listings/actions";
 import type { InventoryRow } from "@/lib/listings/queries";
+import type { InventoryAlerts } from "@/lib/stats/alerts";
 import { ViewModeSwitcher, useViewMode } from "@/app/view-mode-switcher";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
@@ -200,17 +201,35 @@ function compareValues(a: string | number | boolean | null, b: string | number |
   return String(a).localeCompare(String(b), "fr", { numeric: true, sensitivity: "base" });
 }
 
-export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
+type AttentionFilter = null | "no_photo" | "no_price";
+
+export default function InventaireTable({
+  rows,
+  alerts,
+}: {
+  rows: InventoryRow[];
+  alerts: InventoryAlerts;
+}) {
   const router = useRouter();
   const [mode, setMode] = useViewMode("admin", "table");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("");
   const [publishedOnly, setPublishedOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [attention, setAttention] = useState<AttentionFilter>(null);
   const [sortKey, setSortKey] = useState<SortKey>("unit");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [pending, startTransition] = useTransition();
   const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  const noPhotoCount = useMemo(
+    () => rows.filter((r) => !r.hidden && r.photo_count === 0).length,
+    [rows],
+  );
+  const noPriceCount = useMemo(
+    () => rows.filter((r) => !r.hidden && r.is_published && r.price_cad === 0).length,
+    [rows],
+  );
 
   const categories = useMemo(
     () => Array.from(new Set(rows.map((r) => r.category))).filter(Boolean).sort(),
@@ -223,6 +242,8 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
       if (!showHidden && r.hidden) return false;
       if (publishedOnly && !r.is_published) return false;
       if (category && r.category !== category) return false;
+      if (attention === "no_photo" && r.photo_count > 0) return false;
+      if (attention === "no_price" && (r.price_cad > 0 || !r.is_published)) return false;
       if (!q) return true;
       return (
         r.vin.toLowerCase().includes(q) ||
@@ -231,7 +252,7 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
         r.model.toLowerCase().includes(q)
       );
     });
-  }, [rows, search, category, publishedOnly, showHidden]);
+  }, [rows, search, category, publishedOnly, showHidden, attention]);
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -296,6 +317,15 @@ export default function InventaireTable({ rows }: { rows: InventoryRow[] }) {
 
   return (
     <div>
+      <AttentionBanner
+        leadsRecent={alerts.leadsRecent}
+        syncErrorsRecent={alerts.syncErrorsRecent}
+        noPhotoCount={noPhotoCount}
+        noPriceCount={noPriceCount}
+        attention={attention}
+        onAttention={setAttention}
+      />
+
       <div className="flex flex-wrap gap-3 items-center px-6 py-3 bg-white border-b">
         <input
           type="search"
@@ -746,5 +776,88 @@ function AdminListe({
         </li>
       ))}
     </ul>
+  );
+}
+
+function AttentionBanner({
+  leadsRecent,
+  syncErrorsRecent,
+  noPhotoCount,
+  noPriceCount,
+  attention,
+  onAttention,
+}: {
+  leadsRecent: number;
+  syncErrorsRecent: number;
+  noPhotoCount: number;
+  noPriceCount: number;
+  attention: AttentionFilter;
+  onAttention: (a: AttentionFilter) => void;
+}) {
+  const totalAttention = leadsRecent + syncErrorsRecent + noPhotoCount + noPriceCount;
+  if (totalAttention === 0) return null;
+  return (
+    <div className="px-6 py-3 bg-blue-50 border-b border-blue-100 flex flex-wrap gap-2 items-center">
+      <span className="text-xs uppercase tracking-wide text-blue-900 font-semibold mr-1">
+        À faire
+      </span>
+      {leadsRecent > 0 && (
+        <Link
+          href="/inventaire/leads"
+          className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full px-3 py-1 text-xs hover:bg-blue-100 hover:border-blue-300 transition"
+        >
+          <span className="font-semibold text-blue-900">{leadsRecent}</span>
+          <span className="text-gray-700">lead{leadsRecent > 1 ? "s" : ""} 7j</span>
+        </Link>
+      )}
+      {syncErrorsRecent > 0 && (
+        <Link
+          href="/dashboard/activity"
+          className="inline-flex items-center gap-1.5 bg-white border border-red-200 rounded-full px-3 py-1 text-xs hover:bg-red-100 hover:border-red-300 transition"
+        >
+          <span className="font-semibold text-red-700">{syncErrorsRecent}</span>
+          <span className="text-gray-700">erreur{syncErrorsRecent > 1 ? "s" : ""} sync 24h</span>
+        </Link>
+      )}
+      {noPhotoCount > 0 && (
+        <button
+          type="button"
+          onClick={() => onAttention(attention === "no_photo" ? null : "no_photo")}
+          className={
+            "inline-flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs transition " +
+            (attention === "no_photo"
+              ? "bg-amber-200 border-amber-400 text-amber-900"
+              : "bg-white border-amber-200 hover:bg-amber-100")
+          }
+        >
+          <span className="font-semibold text-amber-800">{noPhotoCount}</span>
+          <span className="text-gray-700">sans photo</span>
+        </button>
+      )}
+      {noPriceCount > 0 && (
+        <button
+          type="button"
+          onClick={() => onAttention(attention === "no_price" ? null : "no_price")}
+          className={
+            "inline-flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs transition " +
+            (attention === "no_price"
+              ? "bg-amber-200 border-amber-400 text-amber-900"
+              : "bg-white border-amber-200 hover:bg-amber-100")
+          }
+        >
+          <span className="font-semibold text-amber-800">{noPriceCount}</span>
+          <span className="text-gray-700">publié sans prix</span>
+        </button>
+      )}
+      {attention !== null && (
+        <button
+          type="button"
+          onClick={() => onAttention(null)}
+          className="text-xs text-blue-700 hover:text-blue-900 underline ml-1"
+        >
+          réinitialiser filtre
+        </button>
+      )}
+    </div>
   );
 }

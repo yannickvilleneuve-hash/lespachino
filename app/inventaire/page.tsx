@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { fetchInventory } from "@/lib/listings/queries";
+import { fetchInventoryAlerts } from "@/lib/stats/alerts";
 import { isLespacReady } from "@/lib/lespac/config";
 import { isWixReady } from "@/lib/wix/config";
 import AppHeader from "@/app/app-header";
@@ -11,7 +12,7 @@ import BulkPublishButton from "./bulk-publish-button";
 export const dynamic = "force-dynamic";
 
 export default async function InventairePage() {
-  const rows = await fetchInventory();
+  const [rows, alerts] = await Promise.all([fetchInventory(), fetchInventoryAlerts()]);
   const lespacReady = isLespacReady();
   const wixReady = isWixReady();
 
@@ -41,7 +42,7 @@ export default async function InventairePage() {
           </>
         }
       />
-      <InventaireTable rows={rows} />
+      <InventaireTable rows={rows} alerts={alerts} />
     </main>
   );
 }
