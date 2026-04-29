@@ -11,6 +11,8 @@ import { syncOneToWix } from "@/lib/wix/sync";
 import { isLespacReady } from "@/lib/lespac/config";
 import { syncOneToLespac } from "@/lib/lespac/sync";
 import { triggerMetaFeedRefresh, isMetaPushReady } from "@/lib/meta/push";
+import { postVehicleToPage, isPagePostReady } from "@/lib/meta/page";
+import { fetchPublicListingByUnit } from "@/lib/listings/public";
 import { triggerGoogleFeedRefresh, isGooglePushReady } from "@/lib/google/push";
 
 const PHOTO_BUCKET = "vehicle-photos";
@@ -161,6 +163,44 @@ async function autoSyncChannels(
       await logActivity({
         userEmail,
         action: "sync_meta",
+        targetType: "listing",
+        targetId: unit,
+        details: { trigger: "auto", action: "error", error: (err as Error).message },
+      });
+    }
+  }
+  if (shouldPublish && isPagePostReady()) {
+    try {
+      const detail = await fetchPublicListingByUnit(unit);
+      const result = detail
+        ? await postVehicleToPage({
+            unit: detail.unit,
+            year: detail.year,
+            make: detail.make,
+            model: detail.model,
+            category: detail.category,
+            km: detail.km,
+            price_cad: detail.price_cad,
+            hero_url: detail.hero_url,
+            description_fr: detail.description_fr,
+            detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,
+          })
+        : ({ action: "skipped", reason: "listing introuvable" } as const);
+      await logActivity({
+        userEmail,
+        action: "post_fb_page",
+        targetType: "listing",
+        targetId: unit,
+        details: {
+          trigger: "auto",
+          action: result.action,
+          error: "error" in result ? result.error : undefined,
+        },
+      });
+    } catch (err) {
+      await logActivity({
+        userEmail,
+        action: "post_fb_page",
         targetType: "listing",
         targetId: unit,
         details: { trigger: "auto", action: "error", error: (err as Error).message },
