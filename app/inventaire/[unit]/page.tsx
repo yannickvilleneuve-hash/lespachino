@@ -8,6 +8,7 @@ import AppHeader from "@/app/app-header";
 import { StatusBadge } from "../status-badges";
 import ListingForm from "./listing-form";
 import PhotoManager from "./photo-manager";
+import CaptureMobileButton from "./capture-mobile";
 
 export const dynamic = "force-dynamic";
 
@@ -119,9 +120,14 @@ export default async function EditPage({
             <ChannelStateTable state={detail.channel_state} />
           </div>
           <div className="mt-6 pt-6 border-t">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Photos
-            </h2>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                Photos
+              </h2>
+              <div className="w-56">
+                <CaptureMobileButton unit={detail.unit} />
+              </div>
+            </div>
             <PhotoManager unit={detail.unit} initialPhotos={photosWithUrls} />
           </div>
         </section>

@@ -165,6 +165,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      photo_session: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          expires_at: string;
+          max_uploads: number;
+          token: string;
+          unit: string;
+          used_count: number;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          expires_at: string;
+          max_uploads?: number;
+          token: string;
+          unit: string;
+          used_count?: number;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          expires_at?: string;
+          max_uploads?: number;
+          token?: string;
+          unit?: string;
+          used_count?: number;
+        };
+        Relationships: [];
+      };
       view_event: {
         Row: {
           created_at: string;
