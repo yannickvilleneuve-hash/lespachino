@@ -65,6 +65,27 @@ export function deactivateByVendorId(vendorId: string): Promise<LespacListingSum
   );
 }
 
+/** Détail complet d'une annonce par listingId Lespac (utile pour les annonces
+ *  manuelles sans vendorId). */
+export function getByListingId(listingId: number): Promise<LespacListing | null> {
+  return lespacFetch<LespacListing | null>(
+    "GET",
+    `/sell-api/v1.0/listings/${listingId}`,
+  ).catch((err) => {
+    if (err instanceof Error && /→ 404:/.test(err.message)) return null;
+    throw err;
+  });
+}
+
+/** Désactive une annonce par listingId (pour les annonces manuelles sans
+ *  vendorId qu'on remplace par notre version API). */
+export function deactivateByListingId(listingId: number): Promise<LespacListingSummary> {
+  return lespacFetch<LespacListingSummary>(
+    "PUT",
+    `/sell-api/v1.0/listings/${listingId}/deactivate`,
+  );
+}
+
 export function getByVendorId(vendorId: string): Promise<LespacListing | null> {
   return lespacFetch<LespacListing | null>(
     "GET",

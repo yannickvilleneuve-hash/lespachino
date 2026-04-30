@@ -31,6 +31,14 @@ export default async function InventairePage() {
             <Link href="/inventaire/leads" className="text-xs text-white/70 hover:text-white">
               Leads
             </Link>
+            {lespacReady && (
+              <Link
+                href="/inventaire/import-lespac"
+                className="text-xs text-white/70 hover:text-white"
+              >
+                Import Lespac
+              </Link>
+            )}
             <Link href="/dashboard" className="text-xs text-white/70 hover:text-white">
               Dashboard
             </Link>
