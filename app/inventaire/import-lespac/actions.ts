@@ -68,6 +68,7 @@ export async function getLespacImportContext(): Promise<LespacImportContext> {
     model: v.model,
     year: v.year,
     km: v.km,
+    status: v.status,
   }));
 
   const claimByExtId = new Map<string, string>();

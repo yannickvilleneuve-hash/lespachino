@@ -17,10 +17,10 @@ describe("isManual", () => {
 
 describe("rankSertiMatches", () => {
   const candidates = [
-    { unit: "U1", make: "HINO", model: "195", year: 2013, km: 209000 },
-    { unit: "U2", make: "HINO", model: "195", year: 2013, km: 50000 },
-    { unit: "U3", make: "ISUZU", model: "NPR", year: 2016, km: 100000 },
-    { unit: "U4", make: "HINO", model: "L8", year: 2026, km: 0 },
+    { unit: "U1", make: "HINO", model: "195", year: 2013, km: 209000, status: "available" as const },
+    { unit: "U2", make: "HINO", model: "195", year: 2013, km: 50000, status: "sold" as const },
+    { unit: "U3", make: "ISUZU", model: "NPR", year: 2016, km: 100000, status: "available" as const },
+    { unit: "U4", make: "HINO", model: "L8", year: 2026, km: 0, status: "available" as const },
   ];
 
   it("priorise marque + modèle + année + km", () => {
@@ -60,8 +60,8 @@ describe("rankSertiMatches", () => {
 
   it("départage par km quand make+model+year match plusieurs", () => {
     const cs = [
-      { unit: "A", make: "HINO", model: "195", year: 2020, km: 100000 },
-      { unit: "B", make: "HINO", model: "195", year: 2020, km: 35000 },
+      { unit: "A", make: "HINO", model: "195", year: 2020, km: 100000, status: "available" as const },
+      { unit: "B", make: "HINO", model: "195", year: 2020, km: 35000, status: "available" as const },
     ];
     const ranked = rankSertiMatches(
       { year: 2020, attributes: { Marque: "Hino", Modèle: "195", Kilométrage: "36000" } },

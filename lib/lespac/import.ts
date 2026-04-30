@@ -4,6 +4,7 @@
  */
 
 import type { LespacListing, LespacListingSummary } from "./types";
+import type { SertiStatus } from "@/lib/serti/wgi";
 
 export interface SertiCandidate {
   unit: string;
@@ -11,6 +12,7 @@ export interface SertiCandidate {
   model: string;
   year: number;
   km: number;
+  status: SertiStatus;
 }
 
 export interface MatchScore {

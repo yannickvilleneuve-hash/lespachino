@@ -3,12 +3,38 @@
 import { useState, useTransition } from "react";
 import { importLespacListing, type LespacImportRow } from "./actions";
 import type { SertiCandidate } from "@/lib/lespac/import";
+import type { SertiStatus } from "@/lib/serti/wgi";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",
   currency: "CAD",
   maximumFractionDigits: 0,
 });
+
+const STATUS_LABELS: Record<SertiStatus, string> = {
+  available: "Dispo",
+  quoted: "Soumission",
+  sold: "Vendu",
+};
+
+const STATUS_COLORS: Record<SertiStatus, string> = {
+  available: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  quoted: "bg-amber-100 text-amber-800 border-amber-300",
+  sold: "bg-red-100 text-red-800 border-red-300",
+};
+
+function StatusChip({ status }: { status: SertiStatus }) {
+  return (
+    <span
+      className={
+        "inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border " +
+        STATUS_COLORS[status]
+      }
+    >
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
 
 interface RowState {
   unit: string;
@@ -96,6 +122,9 @@ export default function ImportTable({
           const a = r.detail.attributes ?? {};
           const km = parseInt(a["Kilométrage"] ?? "0", 10) || 0;
           const isPending = pendingId === r.detail.listingId;
+          const selectedStatus: SertiStatus | null = s.unit
+            ? (candidates.find((c) => c.unit === s.unit)?.status ?? null)
+            : null;
           return (
             <div
               key={r.detail.listingId}
@@ -148,32 +177,36 @@ export default function ImportTable({
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <select
-                    value={s.unit}
-                    onChange={(e) => update(r.detail.listingId, { unit: e.target.value })}
-                    className="border rounded px-2 py-1.5 text-sm bg-white"
-                  >
-                    <option value="">— Pas de match SERTI —</option>
-                    {r.matches.length > 0 && (
-                      <optgroup label="Suggestions">
-                        {r.matches.map((m) => {
-                          const v = candidates.find((c) => c.unit === m.unit);
-                          return (
-                            <option key={"s_" + m.unit} value={m.unit}>
-                              {m.unit} — {v?.year} {v?.make} {v?.model} ({m.score}pts: {m.reasons.join(", ")})
-                            </option>
-                          );
-                        })}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={s.unit}
+                      onChange={(e) => update(r.detail.listingId, { unit: e.target.value })}
+                      className="flex-1 border rounded px-2 py-1.5 text-sm bg-white"
+                    >
+                      <option value="">— Pas de match SERTI —</option>
+                      {r.matches.length > 0 && (
+                        <optgroup label="Suggestions">
+                          {r.matches.map((m) => {
+                            const v = candidates.find((c) => c.unit === m.unit);
+                            const tag = v ? `[${STATUS_LABELS[v.status]}] ` : "";
+                            return (
+                              <option key={"s_" + m.unit} value={m.unit}>
+                                {tag}{m.unit} — {v?.year} {v?.make} {v?.model} ({m.score}pts: {m.reasons.join(", ")})
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      <optgroup label="Tous les véhicules SERTI">
+                        {candidates.map((c) => (
+                          <option key={c.unit} value={c.unit}>
+                            [{STATUS_LABELS[c.status]}] {c.unit} — {c.year} {c.make} {c.model} ({c.km.toLocaleString("fr-CA")} km)
+                          </option>
+                        ))}
                       </optgroup>
-                    )}
-                    <optgroup label="Tous les véhicules SERTI">
-                      {candidates.map((c) => (
-                        <option key={c.unit} value={c.unit}>
-                          {c.unit} — {c.year} {c.make} {c.model} ({c.km.toLocaleString("fr-CA")} km)
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+                    </select>
+                    {selectedStatus && <StatusChip status={selectedStatus} />}
+                  </div>
                   <button
                     type="button"
                     onClick={() => onImport(r.detail.listingId)}
@@ -183,6 +216,16 @@ export default function ImportTable({
                     {isPending ? "Import…" : "Importer"}
                   </button>
                 </div>
+                {selectedStatus === "sold" && (
+                  <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+                    ⚠ Ce véhicule est marqué <strong>vendu</strong> dans SERTI. Vérifie avant d&apos;importer (peut-être à juste désactiver Lespac sans rapatrier).
+                  </div>
+                )}
+                {selectedStatus === "quoted" && (
+                  <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                    🔒 En soumission dans SERTI — l&apos;annonce reste valide tant que la transaction n&apos;est pas conclue.
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-700">
                   <label className="flex items-center gap-1.5">
