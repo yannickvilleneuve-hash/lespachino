@@ -36,6 +36,7 @@ export default async function Home() {
     <main className="min-h-screen bg-gray-50">
       <AppHeader
         title="Catalogue"
+        logoHref="/"
         right={
           <Link href="/login" className="text-xs text-white/70 hover:text-white">
             Connexion

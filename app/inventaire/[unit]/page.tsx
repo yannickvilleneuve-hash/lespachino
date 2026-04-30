@@ -41,6 +41,11 @@ export default async function EditPage({
             <Link href="/inventaire" className="text-xs text-white/70 hover:text-white">
               ← Inventaire
             </Link>
+            <form action="/auth/signout" method="post">
+              <button type="submit" className="text-xs text-white/70 hover:text-white">
+                Déconnexion
+              </button>
+            </form>
           </>
         }
       />

@@ -72,6 +72,7 @@ export default async function Page({
       <PixelViewContent unit={detail.unit} price={detail.price_cad} />
       <AppHeader
         title={`${detail.year} ${detail.make} ${detail.model}`}
+        logoHref="/"
         right={
           <Link href="/" className="text-xs text-white/70 hover:text-white">
             ← Catalogue
