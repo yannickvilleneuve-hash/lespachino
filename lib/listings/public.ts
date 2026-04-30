@@ -5,7 +5,7 @@ import {
   type Vehicle,
 } from "@/lib/serti/wgi";
 import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
-import { soldDaysAgo, isSoldGraceExpired } from "@/lib/listings/sync-status";
+import { soldDaysAgo } from "@/lib/listings/sync-status";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -49,10 +49,10 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     .eq("is_published", true)
     .eq("hidden", false);
   if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
-  // Filtre fenêtre grâce 10j post-vente avant d'aller chercher photos/SERTI.
-  const eligible = (listingsRes.data ?? []).filter(
-    (l) => !isSoldGraceExpired((l as { sold_at: string | null }).sold_at),
-  );
+  // Filtre physique appliqué via SERTI WGIAVL='1' (cf listInventoryVehicles).
+  // Quand un camion est livré, SERTI bascule WGIAVL='2' et il disparaît du
+  // join — pas besoin d'ajouter de logique de fenêtre temporelle.
+  const eligible = listingsRes.data ?? [];
   const units = eligible.map((l) => l.unit);
   if (units.length === 0) return [];
 
@@ -112,8 +112,10 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
 
   const l = listingRes.data;
   if (!l || !l.is_published || l.hidden) return null;
-  if (isSoldGraceExpired(l.sold_at)) return null;
-  if (!vehicle) return null;
+  // WGIAVL='1' chez SERTI = présent. Quand SERTI bascule à '2' (livré),
+  // getVehicleByUnit le retournera quand même (pas filtré), donc on
+  // vérifie ici aussi pour exclure les véhicules hors lot du public.
+  if (!vehicle || !vehicle.available) return null;
 
   const photos = photosRes.data.map((p) => ({
     url_medium: publicPhotoUrl(p.storage_path, "medium"),

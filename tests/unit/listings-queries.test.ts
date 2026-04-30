@@ -82,6 +82,9 @@ const baseVehicle = {
   color: "BLANC",
   cost: 50000,
   date_added: "2026-04-01",
+  available: true,
+  avail_raw: "1",
+  avail_comment: "",
 };
 
 describe("fetchInventory", () => {
@@ -105,7 +108,6 @@ describe("fetchInventory", () => {
     expect(rows[0].leads_7d).toBe(0);
     expect(rows[0].channels).toEqual(["native", "fb", "lespac", "kijiji"]);
     expect(rows[0].sold_at).toBeNull();
-    expect(rows[0].sold_grace_expired).toBe(false);
     expect(rows[0].channel_state).toEqual([]);
   });
 

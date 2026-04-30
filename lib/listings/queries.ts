@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getVehicleByUnit, listInventoryVehicles, type Vehicle } from "@/lib/serti/wgi";
 import { publicPhotoUrl } from "@/lib/listings/public";
-import { reconcileStatuses, soldDaysAgo, isSoldGraceExpired, SOLD_GRACE_DAYS } from "@/lib/listings/sync-status";
+import { reconcileStatuses, soldDaysAgo } from "@/lib/listings/sync-status";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -22,8 +22,6 @@ export interface InventoryRow extends Vehicle {
   quoted_at: string | null;
   /** Jours depuis la vente (null si pas vendu). */
   sold_days_ago: number | null;
-  /** Vendu et > 10 jours: doit être exclu du catalogue public. */
-  sold_grace_expired: boolean;
   /** État live de chaque canal (où est-il affiché?). */
   channel_state: ChannelStateRow[];
 }
@@ -44,8 +42,6 @@ function emptyListing(): Pick<ListingRow, "price_cad" | "description_fr" | "is_p
     channels: CHANNEL_DEFAULTS,
   };
 }
-
-export { SOLD_GRACE_DAYS };
 
 export async function fetchInventory(): Promise<InventoryRow[]> {
   const vehicles = await listInventoryVehicles();
@@ -140,7 +136,6 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       sold_at,
       quoted_at: l?.quoted_at ?? null,
       sold_days_ago: soldDaysAgo(sold_at),
-      sold_grace_expired: isSoldGraceExpired(sold_at),
       channel_state: channelStateByUnit.get(v.unit) ?? [],
     };
   });
@@ -207,7 +202,6 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     sold_at,
     quoted_at,
     sold_days_ago: soldDaysAgo(sold_at),
-    sold_grace_expired: isSoldGraceExpired(sold_at),
     photos,
     channel_state: channelStateRes.data ?? [],
   };

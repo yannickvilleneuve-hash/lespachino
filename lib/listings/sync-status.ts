@@ -2,9 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import type { SertiStatus, Vehicle } from "@/lib/serti/wgi";
 
-export const SOLD_GRACE_DAYS = 10;
-export const SOLD_GRACE_MS = SOLD_GRACE_DAYS * 24 * 60 * 60 * 1000;
-
 type Listing = Database["public"]["Tables"]["listing"]["Row"];
 
 export interface StatusState {
@@ -18,12 +15,6 @@ export function soldDaysAgo(sold_at: string | null, now: Date = new Date()): num
   if (!sold_at) return null;
   const ms = now.getTime() - new Date(sold_at).getTime();
   return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
-}
-
-/** Vrai si vendu et délai grâce (10 j) dépassé. */
-export function isSoldGraceExpired(sold_at: string | null, now: Date = new Date()): boolean {
-  if (!sold_at) return false;
-  return now.getTime() - new Date(sold_at).getTime() > SOLD_GRACE_MS;
 }
 
 /**

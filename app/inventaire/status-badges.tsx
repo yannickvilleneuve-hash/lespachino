@@ -15,23 +15,16 @@ export function StatusBadge({ row, dense = false }: { row: InventoryRow; dense?:
   const sz = dense ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs";
   if (row.status === "sold") {
     const days = row.sold_days_ago ?? 0;
-    const expired = row.sold_grace_expired;
     return (
       <span
-        className={
-          sz +
-          " inline-block rounded font-medium " +
-          (expired ? "bg-gray-300 text-gray-600" : "bg-gray-200 text-gray-800")
-        }
+        className={sz + " inline-block rounded font-medium bg-gray-200 text-gray-800"}
         title={
           row.sold_at
-            ? `Vendu le ${new Date(row.sold_at).toLocaleDateString("fr-CA")}` +
-              (expired ? " — délai de grâce 10j dépassé" : "")
+            ? `Vendu le ${new Date(row.sold_at).toLocaleDateString("fr-CA")}`
             : "Vendu"
         }
       >
         Vendu · J-{days}
-        {expired ? " ⚠" : ""}
       </span>
     );
   }

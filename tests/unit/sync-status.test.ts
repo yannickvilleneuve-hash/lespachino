@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { reconcileStatuses, soldDaysAgo, isSoldGraceExpired } from "@/lib/listings/sync-status";
+import { reconcileStatuses, soldDaysAgo } from "@/lib/listings/sync-status";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
@@ -34,15 +34,12 @@ function makeSupabase(existing: Record<string, { serti_status: string; sold_at: 
   return { sb, upserts };
 }
 
-describe("soldDaysAgo / isSoldGraceExpired", () => {
-  it("compte les jours et applique la fenêtre 10 j", () => {
+describe("soldDaysAgo", () => {
+  it("compte les jours depuis la vente", () => {
     const now = new Date("2026-04-29T12:00:00Z");
     expect(soldDaysAgo(null, now)).toBeNull();
     expect(soldDaysAgo("2026-04-29T12:00:00Z", now)).toBe(0);
     expect(soldDaysAgo("2026-04-19T12:00:00Z", now)).toBe(10);
-    expect(isSoldGraceExpired(null, now)).toBe(false);
-    expect(isSoldGraceExpired("2026-04-25T12:00:00Z", now)).toBe(false); // 4j
-    expect(isSoldGraceExpired("2026-04-15T11:00:00Z", now)).toBe(true); // >10j
   });
 });
 

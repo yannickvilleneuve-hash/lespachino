@@ -92,12 +92,13 @@ export default async function EditPage({
                 </dd>
               </>
             )}
+            {detail.avail_comment && (
+              <>
+                <dt className="text-gray-500">Note dispo</dt>
+                <dd className="text-xs text-amber-800">{detail.avail_comment}</dd>
+              </>
+            )}
           </dl>
-          {detail.status === "sold" && detail.sold_grace_expired && (
-            <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-              ⚠ Délai de grâce 10 j dépassé — exclu du catalogue public.
-            </p>
-          )}
           <div className="pt-3 border-t">
             <p className="text-xs text-red-700 font-semibold uppercase tracking-wide">
               Coûtant interne — ne pas divulguer

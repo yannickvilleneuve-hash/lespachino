@@ -26,6 +26,8 @@ describe("getVehicleByVin", () => {
       WGICLD: "BLANC",
       WGICST: "6396.07",
       WGIDAV: "20260326",
+      WGIAVL: "1",
+      WGIAVC: "DANS LA COURS",
     });
     const v = await getVehicleByVin("1GB0G2BG8C1162818");
     expect(v).toEqual({
@@ -41,6 +43,9 @@ describe("getVehicleByVin", () => {
       color: "BLANC",
       cost: 6396.07,
       date_added: "2026-03-26",
+      available: true,
+      avail_raw: "1",
+      avail_comment: "DANS LA COURS",
     });
   });
 
@@ -62,6 +67,8 @@ describe("getVehicleByVin", () => {
       WGICLD: "BLANC",
       WGICST: "0.00",
       WGIDAV: "0",
+      WGIAVL: "2",
+      WGIAVC: "",
     });
     const v = await getVehicleByVin("ABC");
     expect(v?.vin).toBe("ABC");
@@ -69,6 +76,8 @@ describe("getVehicleByVin", () => {
     expect(v?.make).toBe("HINO");
     expect(v?.cost).toBe(0);
     expect(v?.date_added).toBeNull();
+    expect(v?.available).toBe(false);
+    expect(v?.avail_raw).toBe("2");
   });
 });
 
@@ -98,6 +107,8 @@ describe("listActiveVehicles", () => {
         WGICLD: "BLANC",
         WGICST: "85000.00",
         WGIDAV: "20260401",
+        WGIAVL: "1",
+        WGIAVC: "",
       },
     ]);
     const v = await listActiveVehicles();
@@ -106,6 +117,7 @@ describe("listActiveVehicles", () => {
     expect(v[0].cost).toBe(85000);
     expect(v[0].date_added).toBe("2026-04-01");
     expect(v[0].status).toBe("available");
+    expect(v[0].available).toBe(true);
   });
 
   it("vide quand aucune ligne", async () => {
@@ -117,7 +129,7 @@ describe("listActiveVehicles", () => {
 describe("listInventoryVehicles", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("inclut les statuts S et R en plus de A", async () => {
+  it("inclut les statuts S et R en plus de A (filtrés sur WGIAVL='1')", async () => {
     (query as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
         WGISER: "V1",
@@ -131,6 +143,8 @@ describe("listInventoryVehicles", () => {
         WGICLD: "",
         WGICST: "0",
         WGIDAV: "0",
+        WGIAVL: "1",
+        WGIAVC: "VENDU PAS LIVRE",
       },
       {
         WGISER: "V2",
@@ -144,9 +158,13 @@ describe("listInventoryVehicles", () => {
         WGICLD: "",
         WGICST: "0",
         WGIDAV: "0",
+        WGIAVL: "1",
+        WGIAVC: "",
       },
     ]);
     const v = await listInventoryVehicles();
     expect(v.map((x) => x.status)).toEqual(["sold", "quoted"]);
+    expect(v[0].available).toBe(true);
+    expect(v[0].avail_comment).toBe("VENDU PAS LIVRE");
   });
 });

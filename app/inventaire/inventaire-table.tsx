@@ -237,7 +237,6 @@ export default function InventaireTable({
   const [category, setCategory] = useState<string>("");
   const [publishedOnly, setPublishedOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
-  const [showSoldExpired, setShowSoldExpired] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("available");
   const [attention, setAttention] = useState<AttentionFilter>(null);
   const [sortKey, setSortKey] = useState<SortKey>("unit");
@@ -267,17 +266,15 @@ export default function InventaireTable({
       if (r.hidden) continue;
       if (r.status === "available") available += 1;
       else if (r.status === "quoted") quoted += 1;
-      else if (r.status === "sold" && (showSoldExpired || !r.sold_grace_expired)) sold += 1;
+      else if (r.status === "sold") sold += 1;
     }
     return { available, quoted, sold };
-  }, [rows, showSoldExpired]);
+  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (!showHidden && r.hidden) return false;
-      // Vendus expirés (>10j) cachés par défaut, sauf opt-in.
-      if (r.status === "sold" && r.sold_grace_expired && !showSoldExpired) return false;
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (publishedOnly && !r.is_published) return false;
       if (category && r.category !== category) return false;
@@ -291,7 +288,7 @@ export default function InventaireTable({
         r.model.toLowerCase().includes(q)
       );
     });
-  }, [rows, search, category, publishedOnly, showHidden, attention, statusFilter, showSoldExpired]);
+  }, [rows, search, category, publishedOnly, showHidden, attention, statusFilter]);
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -393,14 +390,6 @@ export default function InventaireTable({
           active={statusFilter === "sold"}
           onClick={() => setStatusFilter("sold")}
         />
-        <label className="flex items-center gap-2 text-xs ml-2 text-gray-600">
-          <input
-            type="checkbox"
-            checked={showSoldExpired}
-            onChange={(e) => setShowSoldExpired(e.target.checked)}
-          />
-          Inclure vendus &gt; 10 j
-        </label>
       </div>
 
       <div className="flex flex-wrap gap-3 items-center px-6 py-3 bg-white border-b">

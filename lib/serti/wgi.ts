@@ -17,8 +17,15 @@ export interface Vehicle {
   color: string;
   /** Coûtant interne (WGICST). Ne JAMAIS exposer au catalogue public. */
   cost: number;
-  /** Date d'ajout en inventaire actif (WGIDAV, ISO `YYYY-MM-DD`). */
+  /** Date du dernier changement de la disponibilité (WGIDAV, ISO `YYYY-MM-DD`).
+   *  En pratique = date d'arrivée pour les unités encore au lot. */
   date_added: string | null;
+  /** Vrai si physiquement présent au lot (WGIAVL='1'). Faux si livré/archivé. */
+  available: boolean;
+  /** Code brut WGIAVL (`1` = au lot, `2` = livré). */
+  avail_raw: string;
+  /** Commentaire de disponibilité libre saisi par le vendeur (WGIAVC). */
+  avail_comment: string;
 }
 
 interface WgiRow {
@@ -33,10 +40,12 @@ interface WgiRow {
   WGICLD: string;
   WGICST: string;
   WGIDAV: string;
+  WGIAVL: string;
+  WGIAVC: string;
 }
 
 const SELECT_COLS =
-  "WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD, WGICST, WGIDAV";
+  "WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD, WGICST, WGIDAV, WGIAVL, WGIAVC";
 
 function s(v: string | null | undefined): string {
   return (v ?? "").trim();
@@ -69,6 +78,7 @@ export function normalizeSertiStatus(raw: string): SertiStatus {
 
 function mapRow(row: WgiRow): Vehicle {
   const raw = s(row.WGISTA);
+  const availRaw = s(row.WGIAVL);
   return {
     vin: s(row.WGISER),
     unit: s(row.WGIUNM),
@@ -82,6 +92,9 @@ function mapRow(row: WgiRow): Vehicle {
     color: s(row.WGICLD),
     cost: n(row.WGICST),
     date_added: parseYyyymmdd(row.WGIDAV),
+    available: availRaw === "1",
+    avail_raw: availRaw,
+    avail_comment: s(row.WGIAVC),
   };
 }
 
@@ -101,18 +114,25 @@ export async function getVehicleByUnit(unit: string): Promise<Vehicle | null> {
   return row ? mapRow(row) : null;
 }
 
-/** Véhicules WGISTA='A' uniquement (legacy). */
+/** Véhicules vraiment disponibles à la vente: WGISTA='A' ET physiquement
+ *  présents (WGIAVL='1'). Utiliser pour les compteurs de stock dispo. */
 export async function listActiveVehicles(): Promise<Vehicle[]> {
   const rows = await query<WgiRow>(
-    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE WGISTA = 'A' ORDER BY WGIUNM`,
+    `SELECT ${SELECT_COLS} FROM SDSFC.WGI
+     WHERE WGISTA = 'A' AND WGIAVL = '1'
+     ORDER BY WGIUNM`,
   );
   return rows.map(mapRow);
 }
 
-/** Inventaire admin: A (dispo) + R (en soumission) + S (vendu). */
+/** Inventaire admin: tout ce qui est physiquement au lot (WGIAVL='1').
+ *  Inclut A (dispo), R (en soumission), S (vendu mais pas encore livré).
+ *  Quand SERTI bascule WGIAVL='2' (livré), l'unité disparaît automatiquement. */
 export async function listInventoryVehicles(): Promise<Vehicle[]> {
   const rows = await query<WgiRow>(
-    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE WGISTA IN ('A','R','S') ORDER BY WGIUNM`,
+    `SELECT ${SELECT_COLS} FROM SDSFC.WGI
+     WHERE WGIAVL = '1'
+     ORDER BY WGIUNM`,
   );
   return rows.map(mapRow);
 }
