@@ -708,7 +708,7 @@ function AdminGrille({
                   unoptimized
                 />
               ) : (
-                <VehiclePlaceholder className="absolute inset-0" />
+                <VehiclePlaceholder className="absolute inset-0 w-full h-full" unit={r.unit} make={r.make} model={r.model} year={r.year} />
               )}
               <div className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1">
                 <PublishToggle
@@ -797,7 +797,7 @@ function AdminListe({
                   unoptimized
                 />
               ) : (
-                <VehiclePlaceholder className="absolute inset-0" />
+                <VehiclePlaceholder className="absolute inset-0 w-full h-full" unit={r.unit} make={r.make} model={r.model} year={r.year} />
               )}
             </div>
             <div className="flex-1 min-w-0">

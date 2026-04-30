@@ -7,9 +7,17 @@ import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
 export default function Gallery({
   photos,
   alt,
+  unit,
+  make,
+  model,
+  year,
 }: {
   photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
   alt: string;
+  unit?: string;
+  make?: string;
+  model?: string;
+  year?: number;
 }) {
   const heroIndex = Math.max(
     photos.findIndex((p) => p.is_hero),
@@ -18,7 +26,13 @@ export default function Gallery({
   const [active, setActive] = useState(heroIndex);
   if (photos.length === 0) {
     return (
-      <VehiclePlaceholder className="aspect-[4/3] rounded border" />
+      <VehiclePlaceholder
+        className="aspect-[4/3] rounded border w-full"
+        unit={unit}
+        make={make}
+        model={model}
+        year={year}
+      />
     );
   }
 

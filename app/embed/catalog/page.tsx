@@ -58,7 +58,7 @@ export default async function EmbedCatalog() {
                         unoptimized
                       />
                     ) : (
-                      <VehiclePlaceholder className="absolute inset-0" />
+                      <VehiclePlaceholder className="absolute inset-0 w-full h-full" unit={l.unit} make={l.make} model={l.model} year={l.year} />
                     )}
                     {l.photo_count > 1 && (
                       <span className="absolute bottom-0 right-0 bg-black/70 text-white text-[10px] px-1 rounded-tl">

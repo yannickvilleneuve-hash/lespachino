@@ -82,7 +82,14 @@ export default async function Page({
 
       <div className="max-w-6xl mx-auto px-4 py-5 grid gap-6 lg:grid-cols-[2fr_1fr]">
         <section>
-          <Gallery photos={detail.photos} alt={`${detail.make} ${detail.model} ${detail.year}`} />
+          <Gallery
+            photos={detail.photos}
+            alt={`${detail.make} ${detail.model} ${detail.year}`}
+            unit={detail.unit}
+            make={detail.make}
+            model={detail.model}
+            year={detail.year}
+          />
 
           <h1 className="text-2xl font-bold mt-5">
             {detail.year} {detail.make} {detail.model}
