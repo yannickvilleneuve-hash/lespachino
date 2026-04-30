@@ -238,7 +238,7 @@ export default function InventaireTable({
   const [publishedOnly, setPublishedOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [showSoldExpired, setShowSoldExpired] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("available");
   const [attention, setAttention] = useState<AttentionFilter>(null);
   const [sortKey, setSortKey] = useState<SortKey>("unit");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
