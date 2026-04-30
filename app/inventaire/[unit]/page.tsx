@@ -76,22 +76,6 @@ export default async function EditPage({
             <dd>
               <StatusBadge row={detail} />
             </dd>
-            {detail.sold_at && (
-              <>
-                <dt className="text-gray-500">Vendu le</dt>
-                <dd className="font-mono text-xs">
-                  {new Date(detail.sold_at).toLocaleDateString("fr-CA")}
-                </dd>
-              </>
-            )}
-            {detail.quoted_at && detail.status === "quoted" && (
-              <>
-                <dt className="text-gray-500">Soumis depuis</dt>
-                <dd className="font-mono text-xs">
-                  {new Date(detail.quoted_at).toLocaleDateString("fr-CA")}
-                </dd>
-              </>
-            )}
             {detail.avail_comment && (
               <>
                 <dt className="text-gray-500">Note dispo</dt>

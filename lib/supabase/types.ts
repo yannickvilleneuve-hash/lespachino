@@ -107,9 +107,6 @@ export type Database = {
           hidden: boolean;
           is_published: boolean;
           price_cad: number;
-          quoted_at: string | null;
-          serti_status: string;
-          sold_at: string | null;
           unit: string;
           updated_at: string;
           updated_by: string | null;
@@ -121,9 +118,6 @@ export type Database = {
           hidden?: boolean;
           is_published?: boolean;
           price_cad?: number;
-          quoted_at?: string | null;
-          serti_status?: string;
-          sold_at?: string | null;
           unit: string;
           updated_at?: string;
           updated_by?: string | null;
@@ -135,9 +129,6 @@ export type Database = {
           hidden?: boolean;
           is_published?: boolean;
           price_cad?: number;
-          quoted_at?: string | null;
-          serti_status?: string;
-          sold_at?: string | null;
           unit?: string;
           updated_at?: string;
           updated_by?: string | null;

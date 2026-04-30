@@ -14,30 +14,15 @@ export function statusRank(r: InventoryRow): number {
 export function StatusBadge({ row, dense = false }: { row: InventoryRow; dense?: boolean }) {
   const sz = dense ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs";
   if (row.status === "sold") {
-    const days = row.sold_days_ago ?? 0;
     return (
-      <span
-        className={sz + " inline-block rounded font-medium bg-gray-200 text-gray-800"}
-        title={
-          row.sold_at
-            ? `Vendu le ${new Date(row.sold_at).toLocaleDateString("fr-CA")}`
-            : "Vendu"
-        }
-      >
-        Vendu · J-{days}
+      <span className={sz + " inline-block rounded font-medium bg-gray-200 text-gray-800"}>
+        Vendu
       </span>
     );
   }
   if (row.status === "quoted") {
     return (
-      <span
-        className={sz + " inline-block rounded font-medium bg-amber-100 text-amber-800"}
-        title={
-          row.quoted_at
-            ? `En soumission depuis le ${new Date(row.quoted_at).toLocaleDateString("fr-CA")}`
-            : "En soumission"
-        }
-      >
+      <span className={sz + " inline-block rounded font-medium bg-amber-100 text-amber-800"}>
         En soumission
       </span>
     );

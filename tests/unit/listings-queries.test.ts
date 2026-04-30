@@ -107,7 +107,6 @@ describe("fetchInventory", () => {
     expect(rows[0].views_7d).toBe(0);
     expect(rows[0].leads_7d).toBe(0);
     expect(rows[0].channels).toEqual(["native", "fb", "lespac", "kijiji"]);
-    expect(rows[0].sold_at).toBeNull();
     expect(rows[0].channel_state).toEqual([]);
   });
 
@@ -121,9 +120,6 @@ describe("fetchInventory", () => {
           is_published: true,
           channels: ["native", "fb"],
           hidden: false,
-          sold_at: null,
-          quoted_at: null,
-          serti_status: "available",
         },
       ],
       error: null,
@@ -201,9 +197,6 @@ describe("fetchVehicleByUnit", () => {
           updated_by: null,
           created_at: "",
           updated_at: "",
-          sold_at: null,
-          quoted_at: null,
-          serti_status: "available",
         },
       ],
       error: null,

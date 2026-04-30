@@ -5,7 +5,6 @@ import {
   type Vehicle,
 } from "@/lib/serti/wgi";
 import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
-import { soldDaysAgo } from "@/lib/listings/sync-status";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -19,10 +18,6 @@ export interface PublicListing extends PublicVehicle {
   description_fr: string;
   hero_url: string | null;
   photo_count: number;
-  /** `null` si pas vendu. Sinon ISO timestamp du `sold_at`. */
-  sold_at: string | null;
-  /** Jours depuis la vente (null si pas vendu). */
-  sold_days_ago: number | null;
 }
 
 export interface PublicListingDetail extends PublicListing {
@@ -45,7 +40,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   const supabase = createAdminClient();
   const listingsRes = await supabase
     .from("listing")
-    .select("unit, price_cad, description_fr, is_published, hidden, sold_at")
+    .select("unit, price_cad, description_fr, is_published, hidden")
     .eq("is_published", true)
     .eq("hidden", false);
   if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
@@ -74,7 +69,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   }
 
   const rows: PublicListing[] = [];
-  for (const l of eligible as Pick<ListingRow, "unit" | "price_cad" | "description_fr" | "sold_at">[]) {
+  for (const l of eligible as Pick<ListingRow, "unit" | "price_cad" | "description_fr">[]) {
     const v = vehicleMap.get(l.unit);
     if (!v) continue; // SERTI a perdu le véhicule entre-temps
     const photos = photoByUnit.get(l.unit) ?? [];
@@ -85,8 +80,6 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       description_fr: l.description_fr,
       hero_url: hero ? publicPhotoUrl(hero.storage_path, "medium") : null,
       photo_count: photos.length,
-      sold_at: l.sold_at,
-      sold_days_ago: soldDaysAgo(l.sold_at),
     });
   }
   return rows;
@@ -97,7 +90,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
   const [listingRes, photosRes, vehicle] = await Promise.all([
     supabase
       .from("listing")
-      .select("price_cad, description_fr, is_published, hidden, sold_at")
+      .select("price_cad, description_fr, is_published, hidden")
       .eq("unit", unit)
       .maybeSingle(),
     supabase
@@ -132,7 +125,5 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
     hero_url: hero ? hero.url_medium : null,
     photos,
     photo_count: photos.length,
-    sold_at: l.sold_at,
-    sold_days_ago: soldDaysAgo(l.sold_at),
   };
 }

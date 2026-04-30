@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getVehicleByUnit, listInventoryVehicles, type Vehicle } from "@/lib/serti/wgi";
 import { publicPhotoUrl } from "@/lib/listings/public";
-import { reconcileStatuses, soldDaysAgo } from "@/lib/listings/sync-status";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -18,10 +17,6 @@ export interface InventoryRow extends Vehicle {
   hidden: boolean;
   views_7d: number;
   leads_7d: number;
-  sold_at: string | null;
-  quoted_at: string | null;
-  /** Jours depuis la vente (null si pas vendu). */
-  sold_days_ago: number | null;
   /** État live de chaque canal (où est-il affiché?). */
   channel_state: ChannelStateRow[];
 }
@@ -50,15 +45,12 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   const units = vehicles.map((v) => v.unit);
   const supabase = await createClient();
 
-  // Réconcilie SERTI→Supabase (stamp sold_at/quoted_at sur transitions).
-  await reconcileStatuses(vehicles, supabase);
-
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [listingsRes, photosRes, viewsRes, leadsRes, channelStateRes] = await Promise.all([
     supabase
       .from("listing")
-      .select("unit, price_cad, is_published, channels, hidden, sold_at, quoted_at")
+      .select("unit, price_cad, is_published, channels, hidden")
       .in("unit", units),
     supabase
       .from("vehicle_photo")
@@ -121,7 +113,6 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
     const l = listingMap.get(v.unit);
     const photos = photoByUnit.get(v.unit);
     const heroPath = photos?.hero_path ?? photos?.first_path ?? null;
-    const sold_at = l?.sold_at ?? null;
     return {
       ...v,
       price_cad: l?.price_cad ?? 0,
@@ -133,9 +124,6 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       hidden: l?.hidden ?? false,
       views_7d: viewCount.get(v.unit) ?? 0,
       leads_7d: leadCount.get(v.unit) ?? 0,
-      sold_at,
-      quoted_at: l?.quoted_at ?? null,
-      sold_days_ago: soldDaysAgo(sold_at),
       channel_state: channelStateByUnit.get(v.unit) ?? [],
     };
   });
@@ -146,9 +134,6 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
   if (!vehicle) return null;
 
   const supabase = await createClient();
-
-  // Réconcilie statut sur fetch détail (stamp transitions si applicable).
-  await reconcileStatuses([vehicle], supabase);
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -179,10 +164,8 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
   if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
   if (channelStateRes.error) throw new Error(`channel_state fetch: ${channelStateRes.error.message}`);
 
-  const l = listingRes.data ?? { ...emptyListing(), unit, sold_at: null, quoted_at: null };
+  const l = listingRes.data ?? { ...emptyListing(), unit };
   const photos = photosRes.data;
-  const sold_at = (l as { sold_at?: string | null }).sold_at ?? null;
-  const quoted_at = (l as { quoted_at?: string | null }).quoted_at ?? null;
 
   return {
     ...vehicle,
@@ -199,9 +182,6 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     })(),
     views_7d: viewsRes.data?.length ?? 0,
     leads_7d: leadsRes.data?.length ?? 0,
-    sold_at,
-    quoted_at,
-    sold_days_ago: soldDaysAgo(sold_at),
     photos,
     channel_state: channelStateRes.data ?? [],
   };
