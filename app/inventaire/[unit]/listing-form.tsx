@@ -68,7 +68,6 @@ export default function ListingForm({
   const [tplBody, setTplBody] = useState<BodyType>("none");
   const [tplLength, setTplLength] = useState<string>("");
   const [tplBrand, setTplBrand] = useState<string>("");
-  const [tplWarranty, setTplWarranty] = useState(false);
   const [tplReadyToWork, setTplReadyToWork] = useState(false);
   const [tplExcellent, setTplExcellent] = useState(false);
   const [tplAlmostNew, setTplAlmostNew] = useState(false);
@@ -91,7 +90,6 @@ export default function ListingForm({
       body_type: tplBody,
       body_length_ft: Number.isFinite(len) && len > 0 ? len : undefined,
       equipment_brand: tplBrand.trim() || undefined,
-      warranty: tplWarranty,
       ready_to_work: tplReadyToWork,
       excellent_condition: tplExcellent,
       almost_new: tplAlmostNew,
@@ -223,10 +221,6 @@ export default function ListingForm({
             )}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-700">
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={tplWarranty} onChange={(e) => setTplWarranty(e.target.checked)} />
-              Garantie 5 ans / 320 000 km (Hino class 5)
-            </label>
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={tplReadyToWork} onChange={(e) => setTplReadyToWork(e.target.checked)} />
               Prêt à travailler

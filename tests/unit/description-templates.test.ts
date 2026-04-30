@@ -69,19 +69,6 @@ describe("suggestDescription", () => {
     expect(out).toContain("Monte-charge Maxon TE-20");
   });
 
-  it("garantie Hino class 5 si flag activé", () => {
-    const out = suggestDescription(baseV, { body_type: "none", warranty: true });
-    expect(out).toContain("Garantie 5 ans / 320 000 km");
-  });
-
-  it("pas de garantie si make != Hino", () => {
-    const out = suggestDescription(
-      { year: 2022, make: "ISUZU", model: "NRR", km: 124000 },
-      { body_type: "none", warranty: true },
-    );
-    expect(out).not.toContain("Garantie");
-  });
-
   it("mentions de fin: prêt à travailler / excellente / SAAQ", () => {
     const out = suggestDescription(baseV, {
       body_type: "none",

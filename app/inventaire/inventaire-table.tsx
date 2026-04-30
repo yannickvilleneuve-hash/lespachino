@@ -9,6 +9,7 @@ import type { InventoryRow } from "@/lib/listings/queries";
 import type { InventoryAlerts } from "@/lib/stats/alerts";
 import { ViewModeSwitcher, useViewMode } from "@/app/view-mode-switcher";
 import { StatusBadge, ChannelDots, statusRank } from "./status-badges";
+import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",
@@ -707,9 +708,7 @@ function AdminGrille({
                   unoptimized
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-xs">
-                  pas de photo
-                </div>
+                <VehiclePlaceholder className="absolute inset-0" />
               )}
               <div className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1">
                 <PublishToggle
@@ -798,9 +797,7 @@ function AdminListe({
                   unoptimized
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[10px]">
-                  ∅
-                </div>
+                <VehiclePlaceholder className="absolute inset-0" />
               )}
             </div>
             <div className="flex-1 min-w-0">

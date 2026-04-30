@@ -64,8 +64,6 @@ export interface SuggestOptions {
   body_length_ft?: number;
   /** marque/modèle équipement ex "Maxon TE-20", "ATC", "RÉKA" */
   equipment_brand?: string;
-  /** mention "Garantie 5 ans / 320 000 km" (Hino neuf) */
-  warranty?: boolean;
   /** "Prêt à travailler" */
   ready_to_work?: boolean;
   /** "Excellente condition" */
@@ -149,17 +147,10 @@ function bodyFeatures(opts: SuggestOptions): string[] {
   }
 }
 
-function trailingMentions(
-  opts: SuggestOptions,
-  v: VehicleInput,
-  c: ChassisProfile,
-): string[] {
+function trailingMentions(opts: SuggestOptions, v: VehicleInput): string[] {
   const out: string[] = [];
   if (v.km > 0) {
     out.push(`Seulement ${v.km.toLocaleString("fr-CA")} km`);
-  }
-  if (opts.warranty && v.make.toUpperCase() === "HINO" && c.klass === 5) {
-    out.push("Garantie 5 ans / 320 000 km");
   }
   if (opts.saaq_inspection && opts.saaq_inspection.trim()) {
     out.push(`Inspection SAAQ effectuée en ${opts.saaq_inspection.trim()}`);
@@ -175,7 +166,7 @@ export function suggestDescription(v: VehicleInput, opts: SuggestOptions): strin
   const c = detectChassis(v.make, v.model);
   const title = [v.year || "", v.make, v.model].filter(Boolean).join(" ").trim();
   const features = [...baseFeatures(c), ...bodyFeatures(opts)];
-  const mentions = trailingMentions(opts, v, c);
+  const mentions = trailingMentions(opts, v);
   const lines: string[] = [];
   if (title) {
     lines.push(title);
