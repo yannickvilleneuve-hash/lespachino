@@ -125,6 +125,15 @@ export default async function DashboardPage() {
             <p className="text-xs text-gray-600">Qui a fait quoi, dernières 200 actions.</p>
           </Link>
           <Link
+            href="/dashboard/stats"
+            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
+          >
+            <h3 className="font-semibold mb-1">Statistiques →</h3>
+            <p className="text-xs text-gray-600">
+              Vues / leads par véhicule + sources d&apos;arrivée (Facebook, Lespac, Google…).
+            </p>
+          </Link>
+          <Link
             href="/"
             target="_blank"
             rel="noreferrer"
