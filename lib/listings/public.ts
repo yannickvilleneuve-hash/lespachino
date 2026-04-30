@@ -1,6 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listActiveVehicles, getVehicleByUnit, type Vehicle } from "@/lib/serti/wgi";
+import {
+  listInventoryVehicles,
+  getVehicleByUnit,
+  type Vehicle,
+} from "@/lib/serti/wgi";
 import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
+import { soldDaysAgo, isSoldGraceExpired } from "@/lib/listings/sync-status";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -14,13 +19,15 @@ export interface PublicListing extends PublicVehicle {
   description_fr: string;
   hero_url: string | null;
   photo_count: number;
+  /** `null` si pas vendu. Sinon ISO timestamp du `sold_at`. */
+  sold_at: string | null;
+  /** Jours depuis la vente (null si pas vendu). */
+  sold_days_ago: number | null;
 }
 
 export interface PublicListingDetail extends PublicListing {
   photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
 }
-
-
 
 export function publicPhotoUrl(storagePath: string, variant: PhotoVariant = "original"): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -38,11 +45,15 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   const supabase = createAdminClient();
   const listingsRes = await supabase
     .from("listing")
-    .select("unit, price_cad, description_fr, is_published, hidden")
+    .select("unit, price_cad, description_fr, is_published, hidden, sold_at")
     .eq("is_published", true)
     .eq("hidden", false);
   if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
-  const units = listingsRes.data.map((l) => l.unit);
+  // Filtre fenêtre grâce 10j post-vente avant d'aller chercher photos/SERTI.
+  const eligible = (listingsRes.data ?? []).filter(
+    (l) => !isSoldGraceExpired((l as { sold_at: string | null }).sold_at),
+  );
+  const units = eligible.map((l) => l.unit);
   if (units.length === 0) return [];
 
   const [photosRes, vehicles] = await Promise.all([
@@ -50,7 +61,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       .from("vehicle_photo")
       .select("unit, storage_path, position, is_hero")
       .in("unit", units),
-    listActiveVehicles(),
+    listInventoryVehicles(),
   ]);
   if (photosRes.error) throw new Error(`photos: ${photosRes.error.message}`);
 
@@ -63,7 +74,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   }
 
   const rows: PublicListing[] = [];
-  for (const l of listingsRes.data as Pick<ListingRow, "unit" | "price_cad" | "description_fr">[]) {
+  for (const l of eligible as Pick<ListingRow, "unit" | "price_cad" | "description_fr" | "sold_at">[]) {
     const v = vehicleMap.get(l.unit);
     if (!v) continue; // SERTI a perdu le véhicule entre-temps
     const photos = photoByUnit.get(l.unit) ?? [];
@@ -74,6 +85,8 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       description_fr: l.description_fr,
       hero_url: hero ? publicPhotoUrl(hero.storage_path, "medium") : null,
       photo_count: photos.length,
+      sold_at: l.sold_at,
+      sold_days_ago: soldDaysAgo(l.sold_at),
     });
   }
   return rows;
@@ -84,7 +97,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
   const [listingRes, photosRes, vehicle] = await Promise.all([
     supabase
       .from("listing")
-      .select("price_cad, description_fr, is_published, hidden")
+      .select("price_cad, description_fr, is_published, hidden, sold_at")
       .eq("unit", unit)
       .maybeSingle(),
     supabase
@@ -99,6 +112,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
 
   const l = listingRes.data;
   if (!l || !l.is_published || l.hidden) return null;
+  if (isSoldGraceExpired(l.sold_at)) return null;
   if (!vehicle) return null;
 
   const photos = photosRes.data.map((p) => ({
@@ -116,5 +130,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
     hero_url: hero ? hero.url_medium : null,
     photos,
     photo_count: photos.length,
+    sold_at: l.sold_at,
+    sold_days_ago: soldDaysAgo(l.sold_at),
   };
 }

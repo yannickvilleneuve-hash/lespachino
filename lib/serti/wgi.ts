@@ -1,5 +1,7 @@
 import { query, queryOne } from "./client";
 
+export type SertiStatus = "available" | "quoted" | "sold";
+
 export interface Vehicle {
   vin: string;
   unit: string;
@@ -8,7 +10,10 @@ export interface Vehicle {
   year: number;
   km: number;
   category: string;
-  status: "A" | "S" | "R" | string;
+  /** Code SERTI brut (`A`/`R`/`S`). */
+  status_raw: string;
+  /** Statut normalisé. `A`→available, `R`→quoted, `S`→sold. */
+  status: SertiStatus;
   color: string;
   /** Coûtant interne (WGICST). Ne JAMAIS exposer au catalogue public. */
   cost: number;
@@ -55,7 +60,15 @@ function parseYyyymmdd(v: string | null | undefined): string | null {
   return `${y}-${m}-${d}`;
 }
 
+export function normalizeSertiStatus(raw: string): SertiStatus {
+  const t = (raw ?? "").trim().toUpperCase();
+  if (t === "S") return "sold";
+  if (t === "R") return "quoted";
+  return "available";
+}
+
 function mapRow(row: WgiRow): Vehicle {
+  const raw = s(row.WGISTA);
   return {
     vin: s(row.WGISER),
     unit: s(row.WGIUNM),
@@ -64,7 +77,8 @@ function mapRow(row: WgiRow): Vehicle {
     year: n(row.WGIYEA),
     km: n(row.WGIODM),
     category: s(row.WGICAT),
-    status: s(row.WGISTA),
+    status_raw: raw,
+    status: normalizeSertiStatus(raw),
     color: s(row.WGICLD),
     cost: n(row.WGICST),
     date_added: parseYyyymmdd(row.WGIDAV),
@@ -87,9 +101,18 @@ export async function getVehicleByUnit(unit: string): Promise<Vehicle | null> {
   return row ? mapRow(row) : null;
 }
 
+/** Véhicules WGISTA='A' uniquement (legacy). */
 export async function listActiveVehicles(): Promise<Vehicle[]> {
   const rows = await query<WgiRow>(
     `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE WGISTA = 'A' ORDER BY WGIUNM`,
+  );
+  return rows.map(mapRow);
+}
+
+/** Inventaire admin: A (dispo) + R (en soumission) + S (vendu). */
+export async function listInventoryVehicles(): Promise<Vehicle[]> {
+  const rows = await query<WgiRow>(
+    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE WGISTA IN ('A','R','S') ORDER BY WGIUNM`,
   );
   return rows.map(mapRow);
 }

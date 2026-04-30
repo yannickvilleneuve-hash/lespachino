@@ -7,10 +7,11 @@ const supabaseMock = {
   photos: { data: [] as unknown[], error: null as unknown },
   view_event: { data: [] as unknown[], error: null as unknown },
   lead: { data: [] as unknown[], error: null as unknown },
+  listing_channel_state: { data: [] as unknown[], error: null as unknown },
 };
 
 vi.mock("@/lib/serti/wgi", () => ({
-  listActiveVehicles: vi.fn(),
+  listInventoryVehicles: vi.fn(),
   getVehicleByUnit: vi.fn(),
 }));
 
@@ -32,8 +33,6 @@ function tableHandle(table: string) {
       ? "photos"
       : (table as keyof typeof supabaseMock);
   const data = supabaseMock[key as keyof typeof supabaseMock];
-  // Objet "thenable" qui retourne `data` quand awaité, mais qui supporte
-  // aussi les chaînes `.in()/.gte()/.eq()` qui continuent le chain.
   function thenable(): {
     in: () => ReturnType<typeof thenable>;
     eq: () => {
@@ -63,11 +62,12 @@ function tableHandle(table: string) {
   }
   return {
     select: () => thenable(),
+    upsert: () => Promise.resolve({ data: null, error: null }),
   };
 }
 
 import { fetchInventory, fetchVehicleByUnit } from "@/lib/listings/queries";
-import { listActiveVehicles, getVehicleByUnit } from "@/lib/serti/wgi";
+import { listInventoryVehicles, getVehicleByUnit } from "@/lib/serti/wgi";
 
 const baseVehicle = {
   vin: "V1",
@@ -77,7 +77,8 @@ const baseVehicle = {
   year: 2022,
   km: 10,
   category: "CAMION NEUF",
-  status: "A" as const,
+  status_raw: "A" as const,
+  status: "available" as const,
   color: "BLANC",
   cost: 50000,
   date_added: "2026-04-01",
@@ -90,10 +91,11 @@ describe("fetchInventory", () => {
     supabaseMock.photos = { data: [], error: null };
     supabaseMock.view_event = { data: [], error: null };
     supabaseMock.lead = { data: [], error: null };
+    supabaseMock.listing_channel_state = { data: [], error: null };
   });
 
   it("retourne defaults quand unit absent de listing", async () => {
-    (listActiveVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
+    (listInventoryVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
     const rows = await fetchInventory();
     expect(rows[0].price_cad).toBe(0);
     expect(rows[0].is_published).toBe(false);
@@ -102,12 +104,26 @@ describe("fetchInventory", () => {
     expect(rows[0].views_7d).toBe(0);
     expect(rows[0].leads_7d).toBe(0);
     expect(rows[0].channels).toEqual(["native", "fb", "lespac", "kijiji"]);
+    expect(rows[0].sold_at).toBeNull();
+    expect(rows[0].sold_grace_expired).toBe(false);
+    expect(rows[0].channel_state).toEqual([]);
   });
 
   it("merge prix + photos + views + leads", async () => {
-    (listActiveVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
+    (listInventoryVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
     supabaseMock.listing = {
-      data: [{ unit: "U1", price_cad: 45000, is_published: true, channels: ["native", "fb"], hidden: false }],
+      data: [
+        {
+          unit: "U1",
+          price_cad: 45000,
+          is_published: true,
+          channels: ["native", "fb"],
+          hidden: false,
+          sold_at: null,
+          quoted_at: null,
+          serti_status: "available",
+        },
+      ],
       error: null,
     };
     supabaseMock.photos = {
@@ -122,6 +138,20 @@ describe("fetchInventory", () => {
       error: null,
     };
     supabaseMock.lead = { data: [{ unit: "U1" }], error: null };
+    supabaseMock.listing_channel_state = {
+      data: [
+        {
+          unit: "U1",
+          channel: "native",
+          last_status: "published",
+          last_synced_at: "2026-04-25T10:00:00Z",
+          external_id: null,
+          external_url: null,
+          last_error: null,
+        },
+      ],
+      error: null,
+    };
     const rows = await fetchInventory();
     expect(rows[0].price_cad).toBe(45000);
     expect(rows[0].is_published).toBe(true);
@@ -130,10 +160,12 @@ describe("fetchInventory", () => {
     expect(rows[0].has_hero).toBe(true);
     expect(rows[0].views_7d).toBe(3);
     expect(rows[0].leads_7d).toBe(1);
+    expect(rows[0].channel_state).toHaveLength(1);
+    expect(rows[0].channel_state[0].channel).toBe("native");
   });
 
   it("retourne vide si aucun véhicule actif", async () => {
-    (listActiveVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (listInventoryVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     expect(await fetchInventory()).toEqual([]);
   });
 });
@@ -145,6 +177,7 @@ describe("fetchVehicleByUnit", () => {
     supabaseMock.photos = { data: [], error: null };
     supabaseMock.view_event = { data: [], error: null };
     supabaseMock.lead = { data: [], error: null };
+    supabaseMock.listing_channel_state = { data: [], error: null };
   });
 
   it("retourne null si WGI introuvable", async () => {
@@ -166,6 +199,9 @@ describe("fetchVehicleByUnit", () => {
           updated_by: null,
           created_at: "",
           updated_at: "",
+          sold_at: null,
+          quoted_at: null,
+          serti_status: "available",
         },
       ],
       error: null,
@@ -190,5 +226,6 @@ describe("fetchVehicleByUnit", () => {
     expect(d?.photo_count).toBe(1);
     expect(d?.has_hero).toBe(true);
     expect(d?.photos).toHaveLength(1);
+    expect(d?.channel_state).toEqual([]);
   });
 });

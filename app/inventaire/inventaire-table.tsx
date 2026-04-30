@@ -8,6 +8,7 @@ import { setHidden, togglePublished } from "@/lib/listings/actions";
 import type { InventoryRow } from "@/lib/listings/queries";
 import type { InventoryAlerts } from "@/lib/stats/alerts";
 import { ViewModeSwitcher, useViewMode } from "@/app/view-mode-switcher";
+import { StatusBadge, ChannelDots, statusRank } from "./status-badges";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",
@@ -29,8 +30,12 @@ type SortKey =
   | "is_published"
   | "date_added"
   | "views_7d"
-  | "leads_7d";
+  | "leads_7d"
+  | "status"
+  | "channels_live";
 type SortDir = "asc" | "desc";
+
+type StatusFilter = "all" | "available" | "quoted" | "sold";
 
 interface ColumnDef {
   key: SortKey;
@@ -153,6 +158,20 @@ const COLUMNS: ColumnDef[] = [
     value: (r) => r.leads_7d,
   },
   {
+    key: "status",
+    label: "Statut",
+    align: "center",
+    render: (r) => <StatusBadge row={r} dense />,
+    value: (r) => statusRank(r),
+  },
+  {
+    key: "channels_live",
+    label: "Affiché sur",
+    align: "left",
+    render: (r) => <ChannelDots state={r.channel_state} />,
+    value: (r) => r.channel_state.length,
+  },
+  {
     key: "is_published",
     label: "Publié",
     align: "center",
@@ -190,6 +209,8 @@ const DEFAULT_DIR: Record<SortKey, SortDir> = {
   is_published: "desc",
   views_7d: "desc",
   leads_7d: "desc",
+  status: "asc",
+  channels_live: "desc",
 };
 
 function compareValues(a: string | number | boolean | null, b: string | number | boolean | null) {
@@ -216,6 +237,8 @@ export default function InventaireTable({
   const [category, setCategory] = useState<string>("");
   const [publishedOnly, setPublishedOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [showSoldExpired, setShowSoldExpired] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [attention, setAttention] = useState<AttentionFilter>(null);
   const [sortKey, setSortKey] = useState<SortKey>("unit");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -236,10 +259,26 @@ export default function InventaireTable({
     [rows],
   );
 
+  const counts = useMemo(() => {
+    let available = 0;
+    let quoted = 0;
+    let sold = 0;
+    for (const r of rows) {
+      if (r.hidden) continue;
+      if (r.status === "available") available += 1;
+      else if (r.status === "quoted") quoted += 1;
+      else if (r.status === "sold" && (showSoldExpired || !r.sold_grace_expired)) sold += 1;
+    }
+    return { available, quoted, sold };
+  }, [rows, showSoldExpired]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (!showHidden && r.hidden) return false;
+      // Vendus expirés (>10j) cachés par défaut, sauf opt-in.
+      if (r.status === "sold" && r.sold_grace_expired && !showSoldExpired) return false;
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (publishedOnly && !r.is_published) return false;
       if (category && r.category !== category) return false;
       if (attention === "no_photo" && r.photo_count > 0) return false;
@@ -252,7 +291,7 @@ export default function InventaireTable({
         r.model.toLowerCase().includes(q)
       );
     });
-  }, [rows, search, category, publishedOnly, showHidden, attention]);
+  }, [rows, search, category, publishedOnly, showHidden, attention, statusFilter, showSoldExpired]);
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -325,6 +364,44 @@ export default function InventaireTable({
         attention={attention}
         onAttention={setAttention}
       />
+
+      <div className="flex flex-wrap gap-2 items-center px-6 py-2 bg-white border-b">
+        <StatusChip
+          label="Tous"
+          count={counts.available + counts.quoted + counts.sold}
+          active={statusFilter === "all"}
+          onClick={() => setStatusFilter("all")}
+        />
+        <StatusChip
+          label="Disponibles"
+          count={counts.available}
+          color="emerald"
+          active={statusFilter === "available"}
+          onClick={() => setStatusFilter("available")}
+        />
+        <StatusChip
+          label="En soumission"
+          count={counts.quoted}
+          color="amber"
+          active={statusFilter === "quoted"}
+          onClick={() => setStatusFilter("quoted")}
+        />
+        <StatusChip
+          label="Vendus"
+          count={counts.sold}
+          color="gray"
+          active={statusFilter === "sold"}
+          onClick={() => setStatusFilter("sold")}
+        />
+        <label className="flex items-center gap-2 text-xs ml-2 text-gray-600">
+          <input
+            type="checkbox"
+            checked={showSoldExpired}
+            onChange={(e) => setShowSoldExpired(e.target.checked)}
+          />
+          Inclure vendus &gt; 10 j
+        </label>
+      </div>
 
       <div className="flex flex-wrap gap-3 items-center px-6 py-3 bg-white border-b">
         <input
@@ -645,13 +722,14 @@ function AdminGrille({
                   pas de photo
                 </div>
               )}
-              <div className="absolute top-1.5 left-1.5">
+              <div className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1">
                 <PublishToggle
                   row={r}
                   onToggle={onTogglePublished}
                   pending={pending}
                   size="sm"
                 />
+                {r.status !== "available" && <StatusBadge row={r} dense />}
               </div>
               {r.photo_count > 1 && (
                 <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
@@ -737,7 +815,7 @@ function AdminListe({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-xs flex-wrap">
                 <span className="font-mono text-blue-700">{r.unit}</span>
                 <PublishToggle
                   row={r}
@@ -745,6 +823,8 @@ function AdminListe({
                   pending={pending}
                   size="sm"
                 />
+                <StatusBadge row={r} dense />
+                <ChannelDots state={r.channel_state} />
                 {r.date_added && (
                   <span className="text-gray-400 font-mono">{r.date_added}</span>
                 )}
@@ -776,6 +856,60 @@ function AdminListe({
         </li>
       ))}
     </ul>
+  );
+}
+
+function StatusChip({
+  label,
+  count,
+  color = "blue",
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  color?: "blue" | "emerald" | "amber" | "gray";
+  active: boolean;
+  onClick: () => void;
+}) {
+  const palette: Record<string, { on: string; off: string }> = {
+    blue: {
+      on: "bg-blue-600 border-blue-600 text-white",
+      off: "bg-white border-blue-200 text-blue-800 hover:bg-blue-50",
+    },
+    emerald: {
+      on: "bg-emerald-600 border-emerald-600 text-white",
+      off: "bg-white border-emerald-200 text-emerald-800 hover:bg-emerald-50",
+    },
+    amber: {
+      on: "bg-amber-500 border-amber-500 text-white",
+      off: "bg-white border-amber-200 text-amber-800 hover:bg-amber-50",
+    },
+    gray: {
+      on: "bg-gray-700 border-gray-700 text-white",
+      off: "bg-white border-gray-300 text-gray-700 hover:bg-gray-100",
+    },
+  };
+  const p = palette[color];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs font-medium transition " +
+        (active ? p.on : p.off)
+      }
+    >
+      <span>{label}</span>
+      <span
+        className={
+          "inline-block min-w-[1.25rem] text-center rounded-full px-1.5 text-[10px] " +
+          (active ? "bg-white/20" : "bg-gray-100 text-gray-700")
+        }
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 

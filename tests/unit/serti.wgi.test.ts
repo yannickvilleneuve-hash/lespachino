@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/serti/client", () => ({ queryOne: vi.fn(), query: vi.fn() }));
 
-import { getVehicleByVin, listActiveVehicles } from "@/lib/serti/wgi";
+import {
+  getVehicleByVin,
+  listActiveVehicles,
+  listInventoryVehicles,
+  normalizeSertiStatus,
+} from "@/lib/serti/wgi";
 import { queryOne, query } from "@/lib/serti/client";
 
 describe("getVehicleByVin", () => {
@@ -31,7 +36,8 @@ describe("getVehicleByVin", () => {
       year: 2012,
       km: 145000,
       category: "CAMION USAGE",
-      status: "A",
+      status_raw: "A",
+      status: "available",
       color: "BLANC",
       cost: 6396.07,
       date_added: "2026-03-26",
@@ -66,6 +72,15 @@ describe("getVehicleByVin", () => {
   });
 });
 
+describe("normalizeSertiStatus", () => {
+  it("mappe A/R/S vers les statuts logiques", () => {
+    expect(normalizeSertiStatus("A")).toBe("available");
+    expect(normalizeSertiStatus("R")).toBe("quoted");
+    expect(normalizeSertiStatus("S")).toBe("sold");
+    expect(normalizeSertiStatus("")).toBe("available");
+  });
+});
+
 describe("listActiveVehicles", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -90,10 +105,48 @@ describe("listActiveVehicles", () => {
     expect(v[0].vin).toBe("VIN1");
     expect(v[0].cost).toBe(85000);
     expect(v[0].date_added).toBe("2026-04-01");
+    expect(v[0].status).toBe("available");
   });
 
   it("vide quand aucune ligne", async () => {
     (query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     expect(await listActiveVehicles()).toEqual([]);
+  });
+});
+
+describe("listInventoryVehicles", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("inclut les statuts S et R en plus de A", async () => {
+    (query as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        WGISER: "V1",
+        WGIUNM: "U1",
+        WGIMKE: "HINO",
+        WGIMDL: "L7",
+        WGIYEA: "2022",
+        WGIODM: "0",
+        WGICAT: "C",
+        WGISTA: "S",
+        WGICLD: "",
+        WGICST: "0",
+        WGIDAV: "0",
+      },
+      {
+        WGISER: "V2",
+        WGIUNM: "U2",
+        WGIMKE: "HINO",
+        WGIMDL: "L7",
+        WGIYEA: "2022",
+        WGIODM: "0",
+        WGICAT: "C",
+        WGISTA: "R",
+        WGICLD: "",
+        WGICST: "0",
+        WGIDAV: "0",
+      },
+    ]);
+    const v = await listInventoryVehicles();
+    expect(v.map((x) => x.status)).toEqual(["sold", "quoted"]);
   });
 });

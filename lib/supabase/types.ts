@@ -107,6 +107,9 @@ export type Database = {
           hidden: boolean;
           is_published: boolean;
           price_cad: number;
+          quoted_at: string | null;
+          serti_status: string;
+          sold_at: string | null;
           unit: string;
           updated_at: string;
           updated_by: string | null;
@@ -118,6 +121,9 @@ export type Database = {
           hidden?: boolean;
           is_published?: boolean;
           price_cad?: number;
+          quoted_at?: string | null;
+          serti_status?: string;
+          sold_at?: string | null;
           unit: string;
           updated_at?: string;
           updated_by?: string | null;
@@ -129,9 +135,42 @@ export type Database = {
           hidden?: boolean;
           is_published?: boolean;
           price_cad?: number;
+          quoted_at?: string | null;
+          serti_status?: string;
+          sold_at?: string | null;
           unit?: string;
           updated_at?: string;
           updated_by?: string | null;
+        };
+        Relationships: [];
+      };
+      listing_channel_state: {
+        Row: {
+          channel: string;
+          external_id: string | null;
+          external_url: string | null;
+          last_error: string | null;
+          last_status: string | null;
+          last_synced_at: string | null;
+          unit: string;
+        };
+        Insert: {
+          channel: string;
+          external_id?: string | null;
+          external_url?: string | null;
+          last_error?: string | null;
+          last_status?: string | null;
+          last_synced_at?: string | null;
+          unit: string;
+        };
+        Update: {
+          channel?: string;
+          external_id?: string | null;
+          external_url?: string | null;
+          last_error?: string | null;
+          last_status?: string | null;
+          last_synced_at?: string | null;
+          unit?: string;
         };
         Relationships: [];
       };

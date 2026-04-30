@@ -14,6 +14,9 @@ import { triggerMetaFeedRefresh, isMetaPushReady } from "@/lib/meta/push";
 import { postVehicleToPage, isPagePostReady } from "@/lib/meta/page";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
 import { triggerGoogleFeedRefresh, isGooglePushReady } from "@/lib/google/push";
+import { recordChannelState } from "@/lib/listings/channel-state";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/types";
 
 const PHOTO_BUCKET = "vehicle-photos";
 const MAX_PHOTOS_PER_UNIT = 15;
@@ -91,8 +94,14 @@ export async function togglePublished(
     targetType: "listing",
     targetId: unit,
   });
+  // Stamp état du canal natif (le site lui-même).
+  await recordChannelState(supabase, {
+    unit,
+    channel: "native",
+    status: next ? "published" : "unpublished",
+  });
   // Sync auto vers les canaux configurés (best-effort, ne bloque pas la publication).
-  void autoSyncChannels(unit, next, userEmail);
+  void autoSyncChannels(supabase, unit, next, userEmail);
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
   return { ok: true };
@@ -105,6 +114,7 @@ export async function togglePublished(
  * Fire-and-forget: on log les résultats mais on n'échoue pas le caller.
  */
 async function autoSyncChannels(
+  supabase: SupabaseClient<Database>,
   unit: string,
   shouldPublish: boolean,
   userEmail: string | null,
@@ -119,14 +129,22 @@ async function autoSyncChannels(
         targetId: unit,
         details: { trigger: "auto", action: result.action, error: result.error },
       });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "wix",
+        status: result.action,
+        error: result.error ?? null,
+      });
     } catch (err) {
+      const msg = (err as Error).message;
       await logActivity({
         userEmail,
         action: "sync_wix",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: "error", error: (err as Error).message },
+        details: { trigger: "auto", action: "error", error: msg },
       });
+      await recordChannelState(supabase, { unit, channel: "wix", status: "error", error: msg });
     }
   }
   if (isLespacReady()) {
@@ -139,33 +157,56 @@ async function autoSyncChannels(
         targetId: unit,
         details: { trigger: "auto", action: result.action, error: result.error },
       });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "lespac",
+        status: result.action,
+        external_id: result.listingId != null ? String(result.listingId) : null,
+        error: result.error ?? null,
+      });
     } catch (err) {
+      const msg = (err as Error).message;
       await logActivity({
         userEmail,
         action: "sync_lespac",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: "error", error: (err as Error).message },
+        details: { trigger: "auto", action: "error", error: msg },
       });
+      await recordChannelState(supabase, { unit, channel: "lespac", status: "error", error: msg });
     }
   }
   if (isMetaPushReady()) {
     try {
       const result = await triggerMetaFeedRefresh();
+      const errMsg = "error" in result ? result.error : undefined;
       await logActivity({
         userEmail,
         action: "sync_meta",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: result.action, error: "error" in result ? result.error : undefined },
+        details: { trigger: "auto", action: result.action, error: errMsg },
+      });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "fb_marketplace",
+        status: shouldPublish ? result.action : "unpublished",
+        error: errMsg ?? null,
       });
     } catch (err) {
+      const msg = (err as Error).message;
       await logActivity({
         userEmail,
         action: "sync_meta",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: "error", error: (err as Error).message },
+        details: { trigger: "auto", action: "error", error: msg },
+      });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "fb_marketplace",
+        status: "error",
+        error: msg,
       });
     }
   }
@@ -186,6 +227,7 @@ async function autoSyncChannels(
             detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,
           })
         : ({ action: "skipped", reason: "listing introuvable" } as const);
+      const errMsg = "error" in result ? result.error : undefined;
       await logActivity({
         userEmail,
         action: "post_fb_page",
@@ -194,36 +236,70 @@ async function autoSyncChannels(
         details: {
           trigger: "auto",
           action: result.action,
-          error: "error" in result ? result.error : undefined,
+          error: errMsg,
         },
       });
+      const postId =
+        "postId" in result && typeof result.postId === "string" ? result.postId : null;
+      const pageId = process.env.META_PAGE_ID;
+      const externalUrl =
+        postId && pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : null;
+      await recordChannelState(supabase, {
+        unit,
+        channel: "fb_page",
+        status: result.action,
+        external_id: postId,
+        external_url: externalUrl,
+        error: errMsg ?? null,
+      });
     } catch (err) {
+      const msg = (err as Error).message;
       await logActivity({
         userEmail,
         action: "post_fb_page",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: "error", error: (err as Error).message },
+        details: { trigger: "auto", action: "error", error: msg },
+      });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "fb_page",
+        status: "error",
+        error: msg,
       });
     }
   }
   if (isGooglePushReady()) {
     try {
       const result = await triggerGoogleFeedRefresh();
+      const errMsg = "error" in result ? result.error : undefined;
       await logActivity({
         userEmail,
         action: "sync_google",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: result.action, error: "error" in result ? result.error : undefined },
+        details: { trigger: "auto", action: result.action, error: errMsg },
+      });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "google_vla",
+        status: shouldPublish ? result.action : "unpublished",
+        error: errMsg ?? null,
       });
     } catch (err) {
+      const msg = (err as Error).message;
       await logActivity({
         userEmail,
         action: "sync_google",
         targetType: "listing",
         targetId: unit,
-        details: { trigger: "auto", action: "error", error: (err as Error).message },
+        details: { trigger: "auto", action: "error", error: msg },
+      });
+      await recordChannelState(supabase, {
+        unit,
+        channel: "google_vla",
+        status: "error",
+        error: msg,
       });
     }
   }
