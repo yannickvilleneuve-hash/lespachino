@@ -11,6 +11,13 @@ import {
 } from "@/lib/listings/schema";
 import { upsertListing, togglePublished } from "@/lib/listings/actions";
 import type { PublicationError } from "@/lib/listings/publication";
+import {
+  suggestDescription as buildDescription,
+  BODY_TYPE_LABELS,
+  BODY_TYPES_ORDER,
+  type BodyType,
+  type SuggestOptions,
+} from "@/lib/listings/description-templates";
 
 const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
   price_missing: "Il faut un prix > 0 avant de publier.",
@@ -38,16 +45,6 @@ export interface VehicleContext {
   cost: number;
 }
 
-function suggestDescription(v: VehicleContext): string {
-  const title = `${v.year || ""} ${v.make} ${v.model}`.trim();
-  const km = v.km > 0 ? ` — ${v.km.toLocaleString("fr-CA")} km` : "";
-  const color = v.color ? `, couleur ${v.color.toLowerCase()}` : "";
-  const cat = v.category ? `${v.category.toLowerCase()}` : "véhicule";
-  return `${title}${km}${color}. ${
-    cat.charAt(0).toUpperCase() + cat.slice(1)
-  } inspecté, prêt à servir. Contactez-nous pour plus de détails ou pour planifier un essai.`;
-}
-
 function suggestPrice(cost: number): number {
   if (!cost || cost <= 0) return 0;
   return Math.round((cost * PRICE_MARKUP) / 100) * 100;
@@ -67,16 +64,60 @@ export default function ListingForm({
   const [isPending, startTransition] = useTransition();
   const [publishMsg, setPublishMsg] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showOverwrite, setShowOverwrite] = useState(false);
+  const [tplBody, setTplBody] = useState<BodyType>("none");
+  const [tplLength, setTplLength] = useState<string>("");
+  const [tplBrand, setTplBrand] = useState<string>("");
+  const [tplWarranty, setTplWarranty] = useState(false);
+  const [tplReadyToWork, setTplReadyToWork] = useState(false);
+  const [tplExcellent, setTplExcellent] = useState(false);
+  const [tplAlmostNew, setTplAlmostNew] = useState(false);
+  const [tplSaaq, setTplSaaq] = useState<string>("");
   const {
     register,
     handleSubmit,
     setValue,
+    getValues,
     formState: { errors, isSubmitting, isDirty, isSubmitSuccessful },
     reset,
   } = useForm<ListingFormInput>({
     resolver: zodResolver(listingFormSchema),
     defaultValues: defaults,
   });
+
+  function buildOpts(): SuggestOptions {
+    const len = parseInt(tplLength, 10);
+    return {
+      body_type: tplBody,
+      body_length_ft: Number.isFinite(len) && len > 0 ? len : undefined,
+      equipment_brand: tplBrand.trim() || undefined,
+      warranty: tplWarranty,
+      ready_to_work: tplReadyToWork,
+      excellent_condition: tplExcellent,
+      almost_new: tplAlmostNew,
+      saaq_inspection: tplSaaq.trim() || undefined,
+    };
+  }
+
+  function applySuggestion() {
+    const text = buildDescription(
+      { year: vehicle.year, make: vehicle.make, model: vehicle.model, km: vehicle.km },
+      buildOpts(),
+    );
+    setValue("description_fr", text, { shouldDirty: true, shouldValidate: true });
+  }
+
+  function onSuggestClick() {
+    const current = (getValues("description_fr") ?? "").trim();
+    if (current.length > 0) {
+      setShowOverwrite(true);
+      return;
+    }
+    applySuggestion();
+  }
+
+  const needsLength = tplBody !== "none";
+  const needsBrand = tplBody === "fourgon_montecharge" || tplBody === "fourgon_frio";
 
   async function onSubmit(values: ListingFormInput) {
     await upsertListing(unit, values);
@@ -128,26 +169,100 @@ export default function ListingForm({
         )}
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium">Description (FR)</label>
+      <div className="space-y-3">
+        <label className="block text-sm font-medium">Description (FR)</label>
+
+        <div className="bg-gray-50 border rounded p-3 space-y-3">
+          <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
+            Suggestion par template
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Type de boîte</label>
+              <select
+                value={tplBody}
+                onChange={(e) => setTplBody(e.target.value as BodyType)}
+                className="w-full border rounded px-2 py-1.5 text-sm bg-white"
+              >
+                {BODY_TYPES_ORDER.map((b) => (
+                  <option key={b} value={b}>
+                    {BODY_TYPE_LABELS[b]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {needsLength && (
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Longueur boîte (pieds)</label>
+                <input
+                  type="number"
+                  min={10}
+                  max={40}
+                  value={tplLength}
+                  onChange={(e) => setTplLength(e.target.value)}
+                  placeholder="20"
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                />
+              </div>
+            )}
+            {needsBrand && (
+              <div className="md:col-span-2">
+                <label className="block text-xs text-gray-600 mb-1">
+                  Marque équipement {tplBody === "fourgon_montecharge" ? "(monte-charge)" : "(unité de réfrig.)"}
+                </label>
+                <input
+                  type="text"
+                  value={tplBrand}
+                  onChange={(e) => setTplBrand(e.target.value)}
+                  placeholder={
+                    tplBody === "fourgon_montecharge" ? "Maxon TE-20" : "ATC"
+                  }
+                  className="w-full border rounded px-2 py-1.5 text-sm"
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-700">
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" checked={tplWarranty} onChange={(e) => setTplWarranty(e.target.checked)} />
+              Garantie 5 ans / 320 000 km (Hino class 5)
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" checked={tplReadyToWork} onChange={(e) => setTplReadyToWork(e.target.checked)} />
+              Prêt à travailler
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" checked={tplExcellent} onChange={(e) => setTplExcellent(e.target.checked)} />
+              Excellente condition
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" checked={tplAlmostNew} onChange={(e) => setTplAlmostNew(e.target.checked)} />
+              Camion presque neuf
+            </label>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Inspection SAAQ (optionnel)</label>
+            <input
+              type="text"
+              value={tplSaaq}
+              onChange={(e) => setTplSaaq(e.target.value)}
+              placeholder="Mars 2023"
+              className="w-full border rounded px-2 py-1.5 text-sm"
+            />
+          </div>
           <button
             type="button"
-            onClick={() =>
-              setValue("description_fr", suggestDescription(vehicle), {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-            }
-            className="text-xs text-blue-700 hover:underline"
+            onClick={onSuggestClick}
+            className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded hover:bg-blue-800"
           >
-            💡 Suggérer description
+            💡 Générer description
           </button>
         </div>
+
         <textarea
           {...register("description_fr")}
-          rows={6}
-          className="w-full border rounded px-3 py-2"
+          rows={10}
+          className="w-full border rounded px-3 py-2 font-mono text-sm"
         />
         {errors.description_fr && (
           <p className="text-sm text-red-600 mt-1">{errors.description_fr.message}</p>
@@ -208,7 +323,57 @@ export default function ListingForm({
           onConfirm={confirmTogglePublish}
         />
       )}
+      {showOverwrite && (
+        <ConfirmOverwriteModal
+          onCancel={() => setShowOverwrite(false)}
+          onConfirm={() => {
+            setShowOverwrite(false);
+            applySuggestion();
+          }}
+        />
+      )}
     </form>
+  );
+}
+
+function ConfirmOverwriteModal({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-semibold mb-2">Remplacer la description?</h2>
+        <p className="text-sm text-gray-600 mb-5">
+          Une description existe déjà. Le template va l&apos;écraser. Continuer?
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded border text-sm"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-3 py-1.5 rounded bg-blue-700 text-white text-sm"
+          >
+            Remplacer
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
