@@ -56,7 +56,7 @@ const ICON_BY_CHANNEL: Record<Channel, string> = {
 
 function isPublishedStatus(status: string | null): boolean {
   if (!status) return false;
-  const ok = ["published", "saved", "upserted", "posted", "queued", "ok"];
+  const ok = ["published", "saved", "upserted", "posted", "queued", "ok", "claimed"];
   return ok.includes(status);
 }
 

@@ -214,6 +214,13 @@ export async function importLespacListing(
   }
 
   // Stamp état canal Lespac avec listingId + URL externe.
+  if (opts.publish) {
+    await recordChannelState(supabase, {
+      unit,
+      channel: "native",
+      status: "published",
+    });
+  }
   await recordChannelState(supabase, {
     unit,
     channel: "lespac",

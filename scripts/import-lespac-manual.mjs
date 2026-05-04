@@ -297,6 +297,22 @@ async function importOne(detail, unit) {
     }
   }
 
+  if (PUBLISH) {
+    const native = await supabase.from("listing_channel_state").upsert(
+      {
+        unit,
+        channel: "native",
+        last_status: "published",
+        last_synced_at: new Date().toISOString(),
+        external_id: null,
+        external_url: null,
+        last_error: null,
+      },
+      { onConflict: "unit,channel" },
+    );
+    if (native.error) throw new Error(`native state ${unit}: ${native.error.message}`);
+  }
+
   const channel = await supabase.from("listing_channel_state").upsert(
     {
       unit,

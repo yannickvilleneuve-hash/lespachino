@@ -211,7 +211,15 @@ const CHANNEL_ORDER: LiveChannel[] = [
   "kijiji",
 ];
 
-const PUBLISHED_STATUSES = new Set(["published", "saved", "upserted", "posted", "queued", "ok"]);
+const PUBLISHED_STATUSES = new Set([
+  "published",
+  "saved",
+  "upserted",
+  "posted",
+  "queued",
+  "ok",
+  "claimed",
+]);
 
 function ChannelStateTable({
   state,
