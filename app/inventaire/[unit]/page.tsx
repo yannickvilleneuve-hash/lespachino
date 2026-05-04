@@ -9,6 +9,7 @@ import { StatusBadge } from "../status-badges";
 import ListingForm from "./listing-form";
 import PhotoManager from "./photo-manager";
 import CaptureMobileButton from "./capture-mobile";
+import WalkaroundVideo from "./walkaround-video";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,13 @@ export default async function EditPage({
             <Link href="/inventaire" className="text-xs text-white/70 hover:text-white">
               ← Inventaire
             </Link>
+            <Link
+              href={`/inventaire/${encodeURIComponent(detail.unit)}/pdf`}
+              className="text-xs text-white/70 hover:text-white"
+              target="_blank"
+            >
+              Fiche PDF
+            </Link>
             <form action="/auth/signout" method="post">
               <button type="submit" className="text-xs text-white/70 hover:text-white">
                 Déconnexion
@@ -54,10 +62,10 @@ export default async function EditPage({
       <div className="grid gap-6 p-6 lg:grid-cols-[1fr_2fr] max-w-7xl">
         <aside className="bg-white p-5 rounded shadow space-y-3">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-            Données SERTI (readonly)
+            Infos du camion
           </h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-            <dt className="text-gray-500">Unit</dt>
+            <dt className="text-gray-500">Unité</dt>
             <dd className="font-mono">{detail.unit}</dd>
             <dt className="text-gray-500">VIN</dt>
             <dd className="font-mono text-xs">{detail.vin}</dd>
@@ -90,6 +98,13 @@ export default async function EditPage({
             </p>
             <p className="font-mono text-lg mt-1">{currencyFmt.format(detail.cost)}</p>
           </div>
+          <PublicationChecklist
+            price={detail.price_cad}
+            description={detail.description_fr}
+            photoCount={detail.photo_count}
+            hasHero={detail.has_hero}
+            channels={detail.channels.length}
+          />
         </aside>
 
         <section className="bg-white p-5 rounded shadow">
@@ -130,9 +145,59 @@ export default async function EditPage({
             </div>
             <PhotoManager unit={detail.unit} initialPhotos={photosWithUrls} />
           </div>
+          <div className="mt-6 pt-6 border-t">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Vidéo
+            </h2>
+            <WalkaroundVideo unit={detail.unit} currentUrl={detail.walkaround_video_url} />
+          </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function PublicationChecklist({
+  price,
+  description,
+  photoCount,
+  hasHero,
+  channels,
+}: {
+  price: number;
+  description: string;
+  photoCount: number;
+  hasHero: boolean;
+  channels: number;
+}) {
+  const items = [
+    { label: "Prix", ok: price > 0 },
+    { label: "Description", ok: description.trim().length > 0 },
+    { label: "Photos", ok: photoCount > 0 },
+    { label: "Photo principale", ok: hasHero },
+    { label: "Canaux", ok: channels > 0 },
+  ];
+  return (
+    <div className="pt-3 border-t">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Prêt à publier
+      </h3>
+      <ul className="space-y-1.5 text-sm">
+        {items.map((item) => (
+          <li key={item.label} className="flex items-center gap-2">
+            <span
+              className={
+                "inline-flex w-5 h-5 rounded-full items-center justify-center text-xs font-bold " +
+                (item.ok ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800")
+              }
+            >
+              {item.ok ? "✓" : "!"}
+            </span>
+            <span className={item.ok ? "text-gray-700" : "text-amber-800"}>{item.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

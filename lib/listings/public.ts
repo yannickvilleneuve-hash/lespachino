@@ -23,6 +23,7 @@ export interface PublicListing extends PublicVehicle {
 
 export interface PublicListingDetail extends PublicListing {
   photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
+  walkaround_video_url: string | null;
 }
 
 export interface PublicListingOptions {
@@ -103,7 +104,7 @@ export async function fetchPublicListingByUnit(
   const [listingRes, photosRes, vehicle] = await Promise.all([
     supabase
       .from("listing")
-      .select("price_cad, description_fr, is_published, hidden, channels")
+      .select("price_cad, description_fr, is_published, hidden, channels, walkaround_video_url")
       .eq("unit", unit)
       .maybeSingle(),
     supabase
@@ -139,5 +140,6 @@ export async function fetchPublicListingByUnit(
     hero_url: hero ? hero.url_medium : null,
     photos,
     photo_count: photos.length,
+    walkaround_video_url: l.walkaround_video_url ?? null,
   };
 }

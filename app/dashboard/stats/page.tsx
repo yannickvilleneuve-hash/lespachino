@@ -51,11 +51,14 @@ export default async function StatsPage() {
       />
 
       <div className="max-w-6xl mx-auto p-6 space-y-6">
-        <section className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        <section className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
           <Kpi label="Vues 7 j" value={s.views_7d} />
           <Kpi label="Vues 30 j" value={s.views_30d} />
           <Kpi label="Leads 7 j" value={s.leads_7d} highlight />
           <Kpi label="Leads 30 j" value={s.leads_30d} highlight />
+          <Kpi label="Photos 30 j" value={s.photo_clicks_30d} />
+          <Kpi label="Engagées 30 j" value={s.engaged_30d} />
+          <Kpi label="Vidéos 30 j" value={s.video_plays_30d} />
         </section>
 
         <section className="bg-white border rounded p-5">
@@ -110,6 +113,7 @@ export default async function StatsPage() {
                 <tr>
                   <th className="text-left py-1.5 pr-3">Unité</th>
                   <th className="text-right py-1.5 pr-3">Vues</th>
+                  <th className="text-right py-1.5 pr-3">Photos</th>
                   <th className="text-right py-1.5 pr-3">Leads</th>
                   <th className="text-right py-1.5 pr-3">Conv.</th>
                   <th className="py-1.5"></th>
@@ -129,6 +133,9 @@ export default async function StatsPage() {
                         </Link>
                       </td>
                       <td className="py-1.5 pr-3 text-right font-mono">{r.views}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-gray-600">
+                        {r.photo_clicks}
+                      </td>
                       <td className="py-1.5 pr-3 text-right font-mono">{r.leads}</td>
                       <td className="py-1.5 pr-3 text-right font-mono text-gray-600">
                         {r.views > 0 ? `${conv.toFixed(1)} %` : "—"}

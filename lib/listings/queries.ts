@@ -16,6 +16,7 @@ export interface InventoryRow extends Vehicle {
   has_hero: boolean;
   hero_url: string | null;
   hidden: boolean;
+  walkaround_video_url: string | null;
   views_7d: number;
   leads_7d: number;
   /** État live de chaque canal (où est-il affiché?). */
@@ -28,12 +29,16 @@ export interface InventoryDetail extends InventoryRow {
   channel_state: ChannelStateRow[];
 }
 
-function emptyListing(): Pick<ListingRow, "price_cad" | "description_fr" | "is_published" | "channels"> {
+function emptyListing(): Pick<
+  ListingRow,
+  "price_cad" | "description_fr" | "is_published" | "channels" | "walkaround_video_url"
+> {
   return {
     price_cad: 0,
     description_fr: "",
     is_published: false,
     channels: DEFAULT_CHANNELS,
+    walkaround_video_url: null,
   };
 }
 
@@ -49,7 +54,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   const [listingsRes, photosRes, viewsRes, leadsRes, channelStateRes] = await Promise.all([
     supabase
       .from("listing")
-      .select("unit, price_cad, is_published, channels, hidden")
+      .select("unit, price_cad, is_published, channels, hidden, walkaround_video_url")
       .in("unit", units),
     supabase
       .from("vehicle_photo")
@@ -58,7 +63,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       .order("position", { ascending: true }),
     supabase
       .from("view_event")
-      .select("unit")
+      .select("unit, event_type")
       .in("unit", units)
       .gte("created_at", sevenDaysAgo),
     supabase
@@ -104,7 +109,11 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   }
 
   const viewCount = new Map<string, number>();
-  for (const v of viewsRes.data) viewCount.set(v.unit, (viewCount.get(v.unit) ?? 0) + 1);
+  for (const v of viewsRes.data) {
+    if ((v.event_type ?? "page_view") === "page_view") {
+      viewCount.set(v.unit, (viewCount.get(v.unit) ?? 0) + 1);
+    }
+  }
   const leadCount = new Map<string, number>();
   for (const l of leadsRes.data) leadCount.set(l.unit, (leadCount.get(l.unit) ?? 0) + 1);
 
@@ -121,6 +130,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       has_hero: photos?.hero ?? false,
       hero_url: heroPath ? publicPhotoUrl(heroPath, "thumb") : null,
       hidden: l?.hidden ?? false,
+      walkaround_video_url: l?.walkaround_video_url ?? null,
       views_7d: viewCount.get(v.unit) ?? 0,
       leads_7d: leadCount.get(v.unit) ?? 0,
       channel_state: channelStateByUnit.get(v.unit) ?? [],
@@ -145,7 +155,7 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
       .order("position", { ascending: true }),
     supabase
       .from("view_event")
-      .select("unit")
+      .select("unit, event_type")
       .eq("unit", unit)
       .gte("created_at", sevenDaysAgo),
     supabase
@@ -173,13 +183,14 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     is_published: l.is_published,
     channels: normalizeChannels(l.channels),
     hidden: (l as { hidden?: boolean }).hidden ?? false,
+    walkaround_video_url: l.walkaround_video_url ?? null,
     photo_count: photos.length,
     has_hero: photos.some((p) => p.is_hero),
     hero_url: (() => {
       const hero = photos.find((p) => p.is_hero) ?? photos[0];
       return hero ? publicPhotoUrl(hero.storage_path, "thumb") : null;
     })(),
-    views_7d: viewsRes.data?.length ?? 0,
+    views_7d: viewsRes.data?.filter((v) => (v.event_type ?? "page_view") === "page_view").length ?? 0,
     leads_7d: leadsRes.data?.length ?? 0,
     photos,
     channel_state: channelStateRes.data ?? [],

@@ -7,7 +7,7 @@ const REASON_LABELS: Record<keyof BulkPublishResult["reasons"], string> = {
   price_missing: "manque prix",
   description_missing: "manque description",
   no_photos: "aucune photo",
-  no_hero: "pas de hero",
+  no_hero: "pas de photo principale",
 };
 
 export default function BulkPublishButton() {
@@ -34,7 +34,7 @@ export default function BulkPublishButton() {
         onClick={onClick}
         disabled={pending}
         className="text-xs text-white/70 hover:text-white disabled:opacity-40"
-        title="Publie tous les listings prêts (prix + desc + hero photo)"
+        title="Publie tous les véhicules prêts (prix, description, photo principale)"
       >
         {pending ? "Publication…" : "Publier prêts"}
       </button>

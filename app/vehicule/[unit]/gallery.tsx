@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
+import { logPublicVehicleEvent } from "@/lib/stats/event-actions";
 
 export default function Gallery({
   photos,
@@ -24,6 +25,10 @@ export default function Gallery({
     0,
   );
   const [active, setActive] = useState(heroIndex);
+  function logEvent(eventType: "photo_select" | "photo_open", index: number) {
+    if (!unit) return;
+    void logPublicVehicleEvent(unit, eventType, { index });
+  }
   if (photos.length === 0) {
     return (
       <VehiclePlaceholder
@@ -44,6 +49,7 @@ export default function Gallery({
         rel="noreferrer"
         className="block relative aspect-[4/3] bg-gray-100 rounded overflow-hidden border"
         title="Voir en haute résolution"
+        onClick={() => logEvent("photo_open", active)}
       >
         <Image
           src={photos[active].url_medium}
@@ -61,7 +67,10 @@ export default function Gallery({
             <button
               key={p.url_thumb}
               type="button"
-              onClick={() => setActive(i)}
+              onClick={() => {
+                setActive(i);
+                logEvent("photo_select", i);
+              }}
               className={
                 "relative w-24 h-18 flex-shrink-0 rounded overflow-hidden border-2 transition " +
                 (i === active ? "border-blue-600" : "border-transparent opacity-75 hover:opacity-100")

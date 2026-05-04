@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import {
   DndContext,
@@ -19,6 +20,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   deletePhoto,
+  maskPlateOnPhoto,
+  removeBackgroundOnPhoto,
   reorderPhotos,
   setHero,
   uploadPhoto,
@@ -40,6 +43,7 @@ export default function PhotoManager({
   unit: string;
   initialPhotos: PhotoWithUrl[];
 }) {
+  const router = useRouter();
   const [photos, setPhotos] = useState(initialPhotos);
   const [msg, setMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -142,6 +146,36 @@ export default function PhotoManager({
     });
   }
 
+  function onMaskPlate(id: string) {
+    setMsg(null);
+    startTransition(async () => {
+      const result = await maskPlateOnPhoto(id);
+      if (!result.ok) {
+        setMsg("Impossible de masquer la plaque sur cette photo.");
+        return;
+      }
+      setMsg("Plaque masquée.");
+      router.refresh();
+    });
+  }
+
+  function onRemoveBackground(id: string) {
+    setMsg(null);
+    startTransition(async () => {
+      const result = await removeBackgroundOnPhoto(id);
+      if (!result.ok) {
+        setMsg(
+          result.error === "not_configured"
+            ? "REMOVEBG_API_KEY n'est pas configuré."
+            : "Impossible de traiter le fond de cette photo.",
+        );
+        return;
+      }
+      setMsg("Fond remplacé par blanc.");
+      router.refresh();
+    });
+  }
+
   return (
     <div
       onDragEnter={onDragEnter}
@@ -201,6 +235,9 @@ export default function PhotoManager({
                   photo={p}
                   onDelete={() => onDelete(p.id)}
                   onSetHero={() => onSetHero(p.id)}
+                  onMaskPlate={() => onMaskPlate(p.id)}
+                  onRemoveBackground={() => onRemoveBackground(p.id)}
+                  disabled={isPending}
                 />
               ))}
             </div>
@@ -215,10 +252,16 @@ function SortablePhoto({
   photo,
   onDelete,
   onSetHero,
+  onMaskPlate,
+  onRemoveBackground,
+  disabled,
 }: {
   photo: PhotoWithUrl;
   onDelete: () => void;
   onSetHero: () => void;
+  onMaskPlate: () => void;
+  onRemoveBackground: () => void;
+  disabled: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: photo.id,
@@ -243,10 +286,10 @@ function SortablePhoto({
       </div>
       {photo.is_hero && (
         <span className="absolute top-1 left-1 bg-yellow-400 text-black text-xs font-bold px-1.5 py-0.5 rounded">
-          ★ HERO
+          ★ PRINCIPALE
         </span>
       )}
-      <div className="flex items-center justify-between p-1.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-1 p-1.5 text-xs">
         {photo.is_hero ? (
           <span className="text-gray-400">Principale</span>
         ) : (
@@ -255,9 +298,27 @@ function SortablePhoto({
             onClick={onSetHero}
             className="text-blue-700 hover:underline"
           >
-            Marquer hero
+            Photo principale
           </button>
         )}
+        <button
+          type="button"
+          onClick={onMaskPlate}
+          disabled={disabled}
+          className="text-gray-700 hover:underline disabled:opacity-50"
+          title="Flouter la plaque probable"
+        >
+          Masquer plaque
+        </button>
+        <button
+          type="button"
+          onClick={onRemoveBackground}
+          disabled={disabled}
+          className="text-gray-700 hover:underline disabled:opacity-50"
+          title="Fond blanc avec remove.bg"
+        >
+          Fond blanc
+        </button>
         <button
           type="button"
           onClick={onDelete}

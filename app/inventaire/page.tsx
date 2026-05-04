@@ -25,6 +25,9 @@ export default async function InventairePage() {
             <span className="text-xs text-white/70">
               {rows.length} véhicule{rows.length > 1 ? "s" : ""} actif{rows.length > 1 ? "s" : ""}
             </span>
+            <Link href="/inventaire/scan-vin" className="text-xs text-white/70 hover:text-white">
+              Scanner VIN
+            </Link>
             <BulkPublishButton />
             {wixReady && <SyncWixButton />}
             {lespacReady && <SyncLespacButton />}
@@ -41,6 +44,9 @@ export default async function InventairePage() {
             )}
             <Link href="/dashboard" className="text-xs text-white/70 hover:text-white">
               Dashboard
+            </Link>
+            <Link href="/dashboard/demand" className="text-xs text-white/70 hover:text-white">
+              Demande
             </Link>
             <form action="/auth/signout" method="post">
               <button type="submit" className="text-xs text-white/70 hover:text-white">

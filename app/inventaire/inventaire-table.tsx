@@ -49,7 +49,7 @@ interface ColumnDef {
 const COLUMNS: ColumnDef[] = [
   {
     key: "unit",
-    label: "Unit",
+    label: "Unité",
     render: (r) => (
       <Link
         href={`/inventaire/${encodeURIComponent(r.unit)}`}
@@ -396,7 +396,7 @@ export default function InventaireTable({
       <div className="flex flex-wrap gap-3 items-center px-6 py-3 bg-white border-b">
         <input
           type="search"
-          placeholder="VIN, unit#, make, model…"
+          placeholder="VIN, unité, marque, modèle..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 min-w-[200px] border rounded px-3 py-1.5 text-sm"
@@ -419,7 +419,7 @@ export default function InventaireTable({
             checked={publishedOnly}
             onChange={(e) => setPublishedOnly(e.target.checked)}
           />
-          Publiés seulement
+          Voir publiés seulement
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input

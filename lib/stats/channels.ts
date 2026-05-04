@@ -61,11 +61,14 @@ export interface ChannelStats {
   views_30d: number;
   leads_7d: number;
   leads_30d: number;
+  photo_clicks_30d: number;
+  engaged_30d: number;
+  video_plays_30d: number;
   /** Nombre de vues par source dans la fenêtre choisie. */
   by_source_7d: { source: Source; count: number }[];
   by_source_30d: { source: Source; count: number }[];
   /** Top 10 véhicules par vues 30j avec leads associés. */
-  top_units_30d: { unit: string; views: number; leads: number }[];
+  top_units_30d: { unit: string; views: number; leads: number; photo_clicks: number }[];
   /** 30 derniers jours, vues quotidiennes (ISO date YYYY-MM-DD). */
   daily_30d: { day: string; views: number }[];
 }
@@ -78,7 +81,7 @@ export async function fetchChannelStats(): Promise<ChannelStats> {
   const [viewsRes, leadsRes] = await Promise.all([
     admin
       .from("view_event")
-      .select("unit, referrer, created_at")
+      .select("unit, referrer, created_at, event_type")
       .gte("created_at", iso30)
       .limit(20000),
     admin
@@ -95,13 +98,34 @@ export async function fetchChannelStats(): Promise<ChannelStats> {
   const leads = leadsRes.data ?? [];
 
   let views7 = 0;
+  let views30 = 0;
   const src7 = new Map<Source, number>();
   const src30 = new Map<Source, number>();
   const unitViews = new Map<string, number>();
+  const unitPhotoClicks = new Map<string, number>();
   const dayBuckets = new Map<string, number>();
+  let photoClicks30 = 0;
+  let engaged30 = 0;
+  let videoPlays30 = 0;
 
   for (const v of views) {
+    const eventType = v.event_type ?? "page_view";
+    if (eventType === "photo_select" || eventType === "photo_open") {
+      photoClicks30 += 1;
+      unitPhotoClicks.set(v.unit, (unitPhotoClicks.get(v.unit) ?? 0) + 1);
+      continue;
+    }
+    if (eventType === "engaged_30s") {
+      engaged30 += 1;
+      continue;
+    }
+    if (eventType === "video_play") {
+      videoPlays30 += 1;
+      continue;
+    }
+    if (eventType !== "page_view") continue;
     const ts = new Date(v.created_at).getTime();
+    views30 += 1;
     const src = classifySource(v.referrer);
     src30.set(src, (src30.get(src) ?? 0) + 1);
     unitViews.set(v.unit, (unitViews.get(v.unit) ?? 0) + 1);
@@ -132,6 +156,7 @@ export async function fetchChannelStats(): Promise<ChannelStats> {
       unit,
       views: viewsCount,
       leads: unitLeads.get(unit) ?? 0,
+      photo_clicks: unitPhotoClicks.get(unit) ?? 0,
     }))
     .sort((a, b) => b.views - a.views)
     .slice(0, 10);
@@ -144,9 +169,12 @@ export async function fetchChannelStats(): Promise<ChannelStats> {
 
   return {
     views_7d: views7,
-    views_30d: views.length,
+    views_30d: views30,
     leads_7d: leads7,
     leads_30d: leads.length,
+    photo_clicks_30d: photoClicks30,
+    engaged_30d: engaged30,
+    video_plays_30d: videoPlays30,
     by_source_7d: orderSource(src7),
     by_source_30d: orderSource(src30),
     top_units_30d,

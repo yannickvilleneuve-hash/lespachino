@@ -60,6 +60,35 @@ export async function generateVariants(input: Buffer): Promise<ResizedVariants> 
 }
 
 /**
+ * Masquage conservateur de plaque: floute une zone probable en bas-centre.
+ * Ce n'est pas une détection OCR parfaite, mais c'est fiable, rapide et sans
+ * dépendance externe pour les photos de lot prises de face/arrière.
+ */
+export async function maskLikelyPlate(input: Buffer): Promise<Buffer> {
+  const normalized = await sharp(input).rotate().toBuffer();
+  const meta = await sharp(normalized).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  if (width < 320 || height < 220) return normalized;
+
+  const rectWidth = Math.round(Math.min(width * 0.42, 560));
+  const rectHeight = Math.round(Math.max(48, Math.min(height * 0.12, 130)));
+  const left = Math.max(0, Math.round((width - rectWidth) / 2));
+  const top = Math.max(0, Math.round(height * 0.68 - rectHeight / 2));
+  const safeWidth = Math.min(rectWidth, width - left);
+  const safeHeight = Math.min(rectHeight, height - top);
+
+  const blurred = await sharp(normalized)
+    .extract({ left, top, width: safeWidth, height: safeHeight })
+    .blur(28)
+    .toBuffer();
+
+  return sharp(normalized)
+    .composite([{ input: blurred, left, top }])
+    .toBuffer();
+}
+
+/**
  * Path d'un variant dérivé du storage_path original.
  * `123/abc.jpg` + "thumb" → `123/abc_thumb.webp`
  * `123/abc.jpg` + "original" → `123/abc.jpg`

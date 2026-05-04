@@ -34,9 +34,11 @@ export async function logVehicleView({
     const admin = createAdminClient();
     await admin.from("view_event").insert({
       unit,
+      event_type: "page_view",
       ip_hash: hashIp(ip),
       user_agent: userAgent?.slice(0, 300) ?? null,
       referrer: referrer?.slice(0, 500) ?? null,
+      metadata: {},
     });
   } catch (err) {
     console.error("logVehicleView failed", err);

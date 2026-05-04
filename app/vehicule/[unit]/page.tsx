@@ -9,6 +9,7 @@ import AppHeader from "@/app/app-header";
 import Gallery from "./gallery";
 import LeadForm from "./lead-form";
 import PixelViewContent from "./pixel-view";
+import PublicWalkaroundVideo from "./walkaround-video";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,9 @@ export default async function Page({
             model={detail.model}
             year={detail.year}
           />
+          {detail.walkaround_video_url && (
+            <PublicWalkaroundVideo unit={detail.unit} url={detail.walkaround_video_url} />
+          )}
 
           <h1 className="text-2xl font-bold mt-5">
             {detail.year} {detail.make} {detail.model}
@@ -105,7 +109,7 @@ export default async function Page({
             <Pair label="Catégorie" value={detail.category} />
             {detail.km > 0 && <Pair label="Kilométrage" value={`${detail.km.toLocaleString("fr-CA")} km`} />}
             {detail.color && <Pair label="Couleur" value={detail.color} />}
-            <Pair label="Unit #" value={detail.unit} mono />
+            <Pair label="Unité" value={detail.unit} mono />
             <Pair label="VIN" value={detail.vin} mono />
           </dl>
 

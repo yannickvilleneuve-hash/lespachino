@@ -141,6 +141,13 @@ export default async function DashboardPage() {
             </p>
           </Link>
           <Link
+            href="/dashboard/demand"
+            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
+          >
+            <h3 className="font-semibold mb-1">Demande →</h3>
+            <p className="text-xs text-gray-600">Modèles qui attirent et actions à prioriser.</p>
+          </Link>
+          <Link
             href="/"
             target="_blank"
             rel="noreferrer"

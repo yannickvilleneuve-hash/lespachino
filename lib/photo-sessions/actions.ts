@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateVariants, variantPath } from "@/lib/photos/resize";
+import { generateVariants, maskLikelyPlate, variantPath } from "@/lib/photos/resize";
 import { logActivity } from "@/lib/audit/log";
 
 const PHOTO_BUCKET = "vehicle-photos";
@@ -121,7 +121,10 @@ export async function uploadPhotoBySession(
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().slice(0, 8);
   const id = crypto.randomUUID();
   const path = `${unit}/${id}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const rawBuffer = Buffer.from(await file.arrayBuffer());
+  const buffer = process.env.PHOTO_PLATE_MASK_AUTO === "1"
+    ? await maskLikelyPlate(rawBuffer)
+    : rawBuffer;
 
   let variants;
   try {

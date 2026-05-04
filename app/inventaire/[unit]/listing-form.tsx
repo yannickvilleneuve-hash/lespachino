@@ -9,7 +9,11 @@ import {
   type Channel,
   type ListingFormInput,
 } from "@/lib/listings/schema";
-import { upsertListing, togglePublished } from "@/lib/listings/actions";
+import {
+  generateAssistedListingDescription,
+  upsertListing,
+  togglePublished,
+} from "@/lib/listings/actions";
 import type { PublicationError } from "@/lib/listings/publication";
 import {
   suggestDescription as buildDescription,
@@ -23,11 +27,11 @@ const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
   price_missing: "Il faut un prix > 0 avant de publier.",
   description_missing: "Il faut une description avant de publier.",
   no_photos: "Il faut au moins une photo avant de publier.",
-  no_hero: "Il faut désigner une photo principale (hero).",
+  no_hero: "Il faut désigner une photo principale.",
 };
 
 const CHANNEL_LABELS: Record<Channel, string> = {
-  native: "Site natif",
+  native: "Site Hino",
   wix: "Wix",
   fb_marketplace: "Facebook Marketplace",
   fb_page: "Page Facebook",
@@ -65,7 +69,9 @@ export default function ListingForm({
   vehicle: VehicleContext;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [isDescPending, startDescTransition] = useTransition();
   const [publishMsg, setPublishMsg] = useState<string | null>(null);
+  const [descMsg, setDescMsg] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showOverwrite, setShowOverwrite] = useState(false);
   const [tplBody, setTplBody] = useState<BodyType>("none");
@@ -100,12 +106,29 @@ export default function ListingForm({
     };
   }
 
-  function applySuggestion() {
-    const text = buildDescription(
+  function applyLocalSuggestion() {
+    return buildDescription(
       { year: vehicle.year, make: vehicle.make, model: vehicle.model, km: vehicle.km },
       buildOpts(),
     );
-    setValue("description_fr", text, { shouldDirty: true, shouldValidate: true });
+  }
+
+  function applySuggestion() {
+    setDescMsg(null);
+    startDescTransition(async () => {
+      const result = await generateAssistedListingDescription(unit, buildOpts());
+      const text = result.ok ? result.text : applyLocalSuggestion();
+      setValue("description_fr", text, { shouldDirty: true, shouldValidate: true });
+      if (result.ok) {
+        setDescMsg(
+          result.source === "openai"
+            ? "Description OpenAI prête. Relis rapidement avant de publier."
+            : "Description locale générée. OpenAI n'a pas été utilisé.",
+        );
+      } else {
+        setDescMsg("Description locale générée. " + result.error);
+      }
+    });
   }
 
   function onSuggestClick() {
@@ -175,7 +198,7 @@ export default function ListingForm({
 
         <div className="bg-gray-50 border rounded p-3 space-y-3">
           <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
-            Suggestion par template
+            Assistant de description
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -250,10 +273,12 @@ export default function ListingForm({
           <button
             type="button"
             onClick={onSuggestClick}
-            className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded hover:bg-blue-800"
+            disabled={isDescPending}
+            className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded hover:bg-blue-800 disabled:opacity-50"
           >
-            💡 Générer description
+            {isDescPending ? "Création..." : "Créer une description"}
           </button>
+          {descMsg && <p className="text-xs text-gray-600">{descMsg}</p>}
         </div>
 
         <textarea
@@ -267,7 +292,7 @@ export default function ListingForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-2">Canaux de publication</label>
+        <label className="block text-sm font-medium mb-2">Où publier</label>
         <div className="grid grid-cols-2 gap-2">
           {CHANNELS.map((c) => (
             <label key={c} className="flex items-center gap-2 text-sm">
@@ -287,7 +312,7 @@ export default function ListingForm({
           disabled={isSubmitting || !isDirty}
           className="bg-blue-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
         >
-          {isSubmitting ? "Sauvegarde..." : "Sauvegarder"}
+          {isSubmitting ? "Enregistrement..." : "Enregistrer"}
         </button>
         {isSubmitSuccessful && !isDirty && (
           <span className="text-sm text-green-700">Sauvegardé</span>
@@ -307,8 +332,8 @@ export default function ListingForm({
           {isPending
             ? "..."
             : isPublished
-              ? "Dépublier"
-              : "Publier"}
+              ? "Retirer l'annonce"
+              : "Publier l'annonce"}
         </button>
       </div>
       {publishMsg && <p className="text-sm text-red-600">{publishMsg}</p>}
@@ -351,7 +376,7 @@ function ConfirmOverwriteModal({
       >
         <h2 className="text-lg font-semibold mb-2">Remplacer la description?</h2>
         <p className="text-sm text-gray-600 mb-5">
-          Une description existe déjà. Le template va l&apos;écraser. Continuer?
+          Une description existe déjà. La nouvelle version va la remplacer. Continuer?
         </p>
         <div className="flex justify-end gap-2">
           <button

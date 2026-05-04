@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getVehicleByUnit } from "@/lib/serti/wgi";
 import { listingFormSchema, normalizeChannels, type Channel, type ListingFormInput } from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
-import { generateVariants, variantPath } from "@/lib/photos/resize";
+import { generateVariants, maskLikelyPlate, variantPath } from "@/lib/photos/resize";
+import { removeBackgroundWithRemoveBg } from "@/lib/photos/background-removal";
 import { logActivity } from "@/lib/audit/log";
 import { isWixReady } from "@/lib/wix/config";
 import { syncOneToWix } from "@/lib/wix/sync";
@@ -22,6 +24,8 @@ import {
   type PublicationJobAction,
   type PublicationJobStatus,
 } from "@/lib/listings/publication-jobs";
+import { generateAssistedDescription } from "@/lib/listings/ai-description";
+import type { SuggestOptions } from "@/lib/listings/description-templates";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
@@ -29,6 +33,13 @@ const PHOTO_BUCKET = "vehicle-photos";
 const MAX_PHOTOS_PER_UNIT = 15;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_VIDEO_UPLOAD_BYTES = 300 * 1024 * 1024;
+const ALLOWED_VIDEO_MIME = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
+]);
 
 const EXTERNAL_CHANNELS: Channel[] = [
   "wix",
@@ -91,6 +102,36 @@ export async function upsertListing(unit: string, input: ListingFormInput): Prom
   }
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
+}
+
+export async function generateAssistedListingDescription(
+  unit: string,
+  options: SuggestOptions,
+): Promise<{ ok: true; text: string; source: "openai" | "fallback"; error?: string } | { ok: false; error: string }> {
+  const { userEmail } = await requireUser();
+  const vehicle = await getVehicleByUnit(unit);
+  if (!vehicle) return { ok: false, error: "Véhicule introuvable" };
+
+  const result = await generateAssistedDescription(
+    {
+      year: vehicle.year,
+      make: vehicle.make,
+      model: vehicle.model,
+      km: vehicle.km,
+      color: vehicle.color,
+      category: vehicle.category,
+    },
+    options,
+  );
+
+  await logActivity({
+    userEmail,
+    action: "generate_description",
+    targetType: "listing",
+    targetId: unit,
+    details: { source: result.source, error: result.error ?? null },
+  });
+  return { ok: true, text: result.text, source: result.source, error: result.error };
 }
 
 export async function togglePublished(
@@ -598,7 +639,10 @@ export async function uploadPhoto(unit: string, formData: FormData): Promise<Upl
   const id = crypto.randomUUID();
   const path = `${unit}/${id}.${ext}`;
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const rawBuffer = Buffer.from(await file.arrayBuffer());
+  const buffer = process.env.PHOTO_PLATE_MASK_AUTO === "1"
+    ? await maskLikelyPlate(rawBuffer)
+    : rawBuffer;
   let variants;
   try {
     variants = await generateVariants(buffer);
@@ -647,6 +691,168 @@ export async function uploadPhoto(unit: string, formData: FormData): Promise<Upl
   revalidatePath(`/inventaire/${unit}`);
   revalidatePath("/inventaire");
   return { ok: true, id };
+}
+
+type PhotoEditResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "download_failed" | "processing_failed" | "not_configured" };
+
+async function replacePhotoContent(
+  supabase: SupabaseClient<Database>,
+  storagePath: string,
+  buffer: Buffer,
+  contentType: string,
+): Promise<void> {
+  const variants = await generateVariants(buffer);
+  const thumbPath = variantPath(storagePath, "thumb");
+  const mediumPath = variantPath(storagePath, "medium");
+  const [origUp, thumbUp, medUp] = await Promise.all([
+    supabase.storage.from(PHOTO_BUCKET).upload(storagePath, buffer, {
+      contentType,
+      upsert: true,
+    }),
+    supabase.storage.from(PHOTO_BUCKET).upload(thumbPath, variants.thumb, {
+      contentType: "image/webp",
+      upsert: true,
+    }),
+    supabase.storage.from(PHOTO_BUCKET).upload(mediumPath, variants.medium, {
+      contentType: "image/webp",
+      upsert: true,
+    }),
+  ]);
+  const uploadErr = origUp.error ?? thumbUp.error ?? medUp.error;
+  if (uploadErr) throw new Error(uploadErr.message);
+}
+
+export async function maskPlateOnPhoto(id: string): Promise<PhotoEditResult> {
+  const { supabase, userEmail } = await requireUser();
+  const { data: photo, error: fetchError } = await supabase
+    .from("vehicle_photo")
+    .select("unit, storage_path")
+    .eq("id", id)
+    .single();
+  if (fetchError || !photo) return { ok: false, error: "not_found" };
+
+  const dl = await supabase.storage.from(PHOTO_BUCKET).download(photo.storage_path);
+  if (dl.error || !dl.data) return { ok: false, error: "download_failed" };
+
+  try {
+    const input = Buffer.from(await dl.data.arrayBuffer());
+    const masked = await maskLikelyPlate(input);
+    await replacePhotoContent(supabase, photo.storage_path, masked, dl.data.type || "image/jpeg");
+    await logActivity({
+      userEmail,
+      action: "mask_plate",
+      targetType: "photo",
+      targetId: id,
+      details: { unit: photo.unit },
+    });
+    revalidatePath(`/inventaire/${photo.unit}`);
+    revalidatePath("/inventaire");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "processing_failed" };
+  }
+}
+
+export async function removeBackgroundOnPhoto(id: string): Promise<PhotoEditResult> {
+  const { supabase, userEmail } = await requireUser();
+  const { data: photo, error: fetchError } = await supabase
+    .from("vehicle_photo")
+    .select("unit, storage_path")
+    .eq("id", id)
+    .single();
+  if (fetchError || !photo) return { ok: false, error: "not_found" };
+
+  const dl = await supabase.storage.from(PHOTO_BUCKET).download(photo.storage_path);
+  if (dl.error || !dl.data) return { ok: false, error: "download_failed" };
+
+  try {
+    const input = Buffer.from(await dl.data.arrayBuffer());
+    const processed = await removeBackgroundWithRemoveBg(input, photo.storage_path.split("/").pop() ?? "photo.jpg");
+    if (!processed.ok) {
+      return { ok: false, error: processed.reason === "missing_config" ? "not_configured" : "processing_failed" };
+    }
+    await replacePhotoContent(supabase, photo.storage_path, processed.buffer, processed.contentType);
+    await logActivity({
+      userEmail,
+      action: "remove_photo_background",
+      targetType: "photo",
+      targetId: id,
+      details: { unit: photo.unit },
+    });
+    revalidatePath(`/inventaire/${photo.unit}`);
+    revalidatePath("/inventaire");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "processing_failed" };
+  }
+}
+
+export type UploadVideoResult =
+  | { ok: true; url: string }
+  | { ok: false; error: "invalid_type" | "too_big" | "no_file" | "missing_public_url" };
+
+export async function uploadWalkaroundVideo(
+  unit: string,
+  formData: FormData,
+): Promise<UploadVideoResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "no_file" };
+  if (!ALLOWED_VIDEO_MIME.has(file.type)) return { ok: false, error: "invalid_type" };
+  if (file.size > MAX_VIDEO_UPLOAD_BYTES) return { ok: false, error: "too_big" };
+
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return { ok: false, error: "missing_public_url" };
+
+  const { supabase, userId, userEmail } = await requireUser();
+  const ext = (file.name.split(".").pop() || "mp4").toLowerCase().slice(0, 8);
+  const path = `${unit}/walkaround-${crypto.randomUUID()}.${ext}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { error: uploadError } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, buffer, { contentType: file.type });
+  if (uploadError) throw new Error(`video upload: ${uploadError.message}`);
+
+  const url = `${base}/storage/v1/object/public/${PHOTO_BUCKET}/${path}`;
+  const { error: listingError } = await supabase.from("listing").upsert({
+    unit,
+    walkaround_video_url: url,
+    updated_by: userId,
+  });
+  if (listingError) {
+    await supabase.storage.from(PHOTO_BUCKET).remove([path]);
+    throw new Error(`listing video: ${listingError.message}`);
+  }
+
+  await logActivity({
+    userEmail,
+    action: "upload_walkaround_video",
+    targetType: "listing",
+    targetId: unit,
+    details: { size: file.size, type: file.type },
+  });
+  revalidatePath(`/inventaire/${unit}`);
+  revalidatePath(`/vehicule/${unit}`);
+  return { ok: true, url };
+}
+
+export async function clearWalkaroundVideo(unit: string): Promise<void> {
+  const { supabase, userId, userEmail } = await requireUser();
+  const { error } = await supabase.from("listing").upsert({
+    unit,
+    walkaround_video_url: null,
+    updated_by: userId,
+  });
+  if (error) throw new Error(`clear video: ${error.message}`);
+  await logActivity({
+    userEmail,
+    action: "clear_walkaround_video",
+    targetType: "listing",
+    targetId: unit,
+  });
+  revalidatePath(`/inventaire/${unit}`);
+  revalidatePath(`/vehicule/${unit}`);
 }
 
 export async function deletePhoto(id: string): Promise<void> {

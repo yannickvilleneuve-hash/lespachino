@@ -45,7 +45,7 @@ export default async function LeadsPage() {
           <thead className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wide">
             <tr>
               <th className="px-3 py-2 text-left">Date</th>
-              <th className="px-3 py-2 text-left">Unit</th>
+              <th className="px-3 py-2 text-left">Unité</th>
               <th className="px-3 py-2 text-left">Nom</th>
               <th className="px-3 py-2 text-left">Téléphone</th>
               <th className="px-3 py-2 text-left">Courriel</th>

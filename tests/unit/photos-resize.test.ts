@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { generateVariants, variantPath, VARIANT_SPECS } from "@/lib/photos/resize";
+import {
+  generateVariants,
+  maskLikelyPlate,
+  variantPath,
+  VARIANT_SPECS,
+} from "@/lib/photos/resize";
 
 describe("variantPath", () => {
   it("retourne path original tel quel pour 'original'", () => {
@@ -19,6 +24,26 @@ describe("variantPath", () => {
 
   it("gère un path sans extension", () => {
     expect(variantPath("U123/abc", "thumb")).toBe("U123/abc_thumb.webp");
+  });
+});
+
+describe("maskLikelyPlate", () => {
+  it("conserve les dimensions de l'image", async () => {
+    const input = await sharp({
+      create: {
+        width: 1000,
+        height: 700,
+        channels: 3,
+        background: { r: 40, g: 80, b: 120 },
+      },
+    })
+      .jpeg()
+      .toBuffer();
+
+    const out = await maskLikelyPlate(input);
+    const meta = await sharp(out).metadata();
+    expect(meta.width).toBe(1000);
+    expect(meta.height).toBe(700);
   });
 });
 

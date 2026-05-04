@@ -27,8 +27,16 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
       listActiveVehicles(),
       admin.from("listing").select("unit, price_cad, is_published, hidden"),
       admin.from("vehicle_photo").select("id", { count: "exact", head: true }),
-      admin.from("view_event").select("id", { count: "exact", head: true }).gte("created_at", iso(7)),
-      admin.from("view_event").select("id", { count: "exact", head: true }).gte("created_at", iso(30)),
+      admin
+        .from("view_event")
+        .select("id", { count: "exact", head: true })
+        .eq("event_type", "page_view")
+        .gte("created_at", iso(7)),
+      admin
+        .from("view_event")
+        .select("id", { count: "exact", head: true })
+        .eq("event_type", "page_view")
+        .gte("created_at", iso(30)),
       admin.from("lead").select("id", { count: "exact", head: true }).gte("created_at", iso(7)),
       admin.from("lead").select("id", { count: "exact", head: true }).gte("created_at", iso(30)),
     ]);

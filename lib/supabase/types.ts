@@ -131,6 +131,7 @@ export type Database = {
           unit: string;
           updated_at: string;
           updated_by: string | null;
+          walkaround_video_url: string | null;
         };
         Insert: {
           channels?: string[];
@@ -142,6 +143,7 @@ export type Database = {
           unit: string;
           updated_at?: string;
           updated_by?: string | null;
+          walkaround_video_url?: string | null;
         };
         Update: {
           channels?: string[];
@@ -153,6 +155,7 @@ export type Database = {
           unit?: string;
           updated_at?: string;
           updated_by?: string | null;
+          walkaround_video_url?: string | null;
         };
         Relationships: [];
       };
@@ -273,24 +276,30 @@ export type Database = {
       view_event: {
         Row: {
           created_at: string;
+          event_type: string;
           id: string;
           ip_hash: string | null;
+          metadata: Json;
           referrer: string | null;
           unit: string;
           user_agent: string | null;
         };
         Insert: {
           created_at?: string;
+          event_type?: string;
           id?: string;
           ip_hash?: string | null;
+          metadata?: Json;
           referrer?: string | null;
           unit: string;
           user_agent?: string | null;
         };
         Update: {
           created_at?: string;
+          event_type?: string;
           id?: string;
           ip_hash?: string | null;
+          metadata?: Json;
           referrer?: string | null;
           unit?: string;
           user_agent?: string | null;

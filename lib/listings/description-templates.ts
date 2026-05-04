@@ -15,7 +15,7 @@ export type BodyType =
   | "towing";
 
 export const BODY_TYPE_LABELS: Record<BodyType, string> = {
-  none: "Aucun template",
+  none: "Aucune carrosserie",
   fourgon_rampe: "Fourgon avec rampe",
   fourgon_montecharge: "Fourgon avec monte-charge",
   fourgon_frio: "Fourgon réfrigéré (Class 5)",
