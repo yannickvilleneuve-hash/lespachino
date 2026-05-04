@@ -8,7 +8,7 @@ import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { ViewModeSwitcher, useViewMode } from "./view-mode-switcher";
 import { VehiclePlaceholder } from "./vehicle-placeholder";
 
-export type CatalogListing = Omit<PublicListing, "price_cad">;
+export type CatalogListing = PublicListing;
 
 type SortKey = "year" | "make" | "model" | "category" | "km";
 type SortDir = "asc" | "desc";

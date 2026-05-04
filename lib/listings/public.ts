@@ -8,14 +8,12 @@ import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
 import type { Database } from "@/lib/supabase/types";
 import { normalizeChannels, type Channel } from "./schema";
 
-type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
 type PhotoRow = Database["public"]["Tables"]["vehicle_photo"]["Row"];
 
 /** Vehicle tel qu'il apparaît au public — **sans** coûtant. */
 export type PublicVehicle = Omit<Vehicle, "cost">;
 
 export interface PublicListing extends PublicVehicle {
-  price_cad: number;
   description_fr: string;
   hero_url: string | null;
   photo_count: number;
@@ -48,7 +46,7 @@ export async function fetchPublicListings(options: PublicListingOptions = {}): P
   const supabase = createAdminClient();
   let query = supabase
     .from("listing")
-    .select("unit, price_cad, description_fr, is_published, hidden")
+    .select("unit, description_fr, is_published, hidden")
     .eq("is_published", true)
     .eq("hidden", false);
   if (channel) query = query.contains("channels", [channel]);
@@ -79,14 +77,13 @@ export async function fetchPublicListings(options: PublicListingOptions = {}): P
   }
 
   const rows: PublicListing[] = [];
-  for (const l of eligible as Pick<ListingRow, "unit" | "price_cad" | "description_fr">[]) {
+  for (const l of eligible) {
     const v = vehicleMap.get(l.unit);
     if (!v) continue; // SERTI a perdu le véhicule entre-temps
     const photos = photoByUnit.get(l.unit) ?? [];
     const hero = photos.find((p) => p.is_hero) ?? photos[0];
     rows.push({
       ...stripCost(v),
-      price_cad: l.price_cad,
       description_fr: l.description_fr,
       hero_url: hero ? publicPhotoUrl(hero.storage_path, "medium") : null,
       photo_count: photos.length,
@@ -104,7 +101,7 @@ export async function fetchPublicListingByUnit(
   const [listingRes, photosRes, vehicle] = await Promise.all([
     supabase
       .from("listing")
-      .select("price_cad, description_fr, is_published, hidden, channels, walkaround_video_url")
+      .select("description_fr, is_published, hidden, channels, walkaround_video_url")
       .eq("unit", unit)
       .maybeSingle(),
     supabase
@@ -135,7 +132,6 @@ export async function fetchPublicListingByUnit(
 
   return {
     ...stripCost(vehicle),
-    price_cad: l.price_cad,
     description_fr: l.description_fr,
     hero_url: hero ? hero.url_medium : null,
     photos,

@@ -34,7 +34,7 @@ export default function BulkPublishButton() {
         onClick={onClick}
         disabled={pending}
         className="text-xs text-white/70 hover:text-white disabled:opacity-40"
-        title="Publie tous les véhicules prêts (prix, description, photo principale)"
+        title="Publie tous les véhicules prêts (description et photo principale)"
       >
         {pending ? "Publication…" : "Publier prêts"}
       </button>

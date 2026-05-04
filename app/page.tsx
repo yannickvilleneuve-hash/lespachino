@@ -30,10 +30,7 @@ export default async function Home() {
   } = await supabase.auth.getUser();
   if (user) redirect("/inventaire");
 
-  const listings = (await fetchPublicListings()).map(({ price_cad: _price, ...listing }) => {
-    void _price;
-    return listing;
-  });
+  const listings = await fetchPublicListings();
 
   return (
     <main className="min-h-screen bg-gray-50">

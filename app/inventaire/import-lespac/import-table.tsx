@@ -113,7 +113,7 @@ export default function ImportTable({
   return (
     <div className="p-6 space-y-4 max-w-7xl">
       <p className="text-sm text-gray-600">
-        Annonces publiées manuellement sur Lespac (sans <code>vendorId</code>). Choisis l&apos;unité SERTI à rattacher, puis Importer pour rapatrier prix, description et photos. Cocher &laquo;&nbsp;désactiver Lespac&nbsp;&raquo; pour qu&apos;elle disparaisse de Lespac (on republiera ensuite via API depuis le dashboard).
+        Annonces publiées manuellement sur Lespac (sans <code>vendorId</code>). Choisis l&apos;unité SERTI à rattacher, puis Importer pour rapatrier le prix interne, la description et les photos. Cocher &laquo;&nbsp;désactiver Lespac&nbsp;&raquo; pour qu&apos;elle disparaisse de Lespac (on republiera ensuite via API depuis le dashboard).
       </p>
 
       <div className="space-y-3">

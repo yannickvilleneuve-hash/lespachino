@@ -110,7 +110,7 @@ const COLUMNS: ColumnDef[] = [
   },
   {
     key: "price_cad",
-    label: "Prix",
+    label: "Prix interne",
     align: "right",
     render: (r) =>
       r.price_cad > 0 ? (
@@ -223,7 +223,7 @@ function compareValues(a: string | number | boolean | null, b: string | number |
   return String(a).localeCompare(String(b), "fr", { numeric: true, sensitivity: "base" });
 }
 
-type AttentionFilter = null | "no_photo" | "no_price";
+type AttentionFilter = null | "no_photo";
 
 export default function InventaireTable({
   rows,
@@ -249,11 +249,6 @@ export default function InventaireTable({
     () => rows.filter((r) => !r.hidden && r.photo_count === 0).length,
     [rows],
   );
-  const noPriceCount = useMemo(
-    () => rows.filter((r) => !r.hidden && r.is_published && r.price_cad === 0).length,
-    [rows],
-  );
-
   const categories = useMemo(
     () => Array.from(new Set(rows.map((r) => r.category))).filter(Boolean).sort(),
     [rows],
@@ -280,7 +275,6 @@ export default function InventaireTable({
       if (publishedOnly && !r.is_published) return false;
       if (category && r.category !== category) return false;
       if (attention === "no_photo" && r.photo_count > 0) return false;
-      if (attention === "no_price" && (r.price_cad > 0 || !r.is_published)) return false;
       if (!q) return true;
       return (
         r.vin.toLowerCase().includes(q) ||
@@ -358,7 +352,6 @@ export default function InventaireTable({
         leadsRecent={alerts.leadsRecent}
         syncErrorsRecent={alerts.syncErrorsRecent}
         noPhotoCount={noPhotoCount}
-        noPriceCount={noPriceCount}
         attention={attention}
         onAttention={setAttention}
       />
@@ -903,18 +896,16 @@ function AttentionBanner({
   leadsRecent,
   syncErrorsRecent,
   noPhotoCount,
-  noPriceCount,
   attention,
   onAttention,
 }: {
   leadsRecent: number;
   syncErrorsRecent: number;
   noPhotoCount: number;
-  noPriceCount: number;
   attention: AttentionFilter;
   onAttention: (a: AttentionFilter) => void;
 }) {
-  const totalAttention = leadsRecent + syncErrorsRecent + noPhotoCount + noPriceCount;
+  const totalAttention = leadsRecent + syncErrorsRecent + noPhotoCount;
   if (totalAttention === 0) return null;
   return (
     <div className="px-6 py-3 bg-blue-50 border-b border-blue-100 flex flex-wrap gap-2 items-center">
@@ -952,21 +943,6 @@ function AttentionBanner({
         >
           <span className="font-semibold text-amber-800">{noPhotoCount}</span>
           <span className="text-gray-700">sans photo</span>
-        </button>
-      )}
-      {noPriceCount > 0 && (
-        <button
-          type="button"
-          onClick={() => onAttention(attention === "no_price" ? null : "no_price")}
-          className={
-            "inline-flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs transition " +
-            (attention === "no_price"
-              ? "bg-amber-200 border-amber-400 text-amber-900"
-              : "bg-white border-amber-200 hover:bg-amber-100")
-          }
-        >
-          <span className="font-semibold text-amber-800">{noPriceCount}</span>
-          <span className="text-gray-700">publié sans prix</span>
         </button>
       )}
       {attention !== null && (

@@ -92,7 +92,7 @@ export async function fetchDemandInsights(): Promise<DemandInsights> {
       const price = listing?.price_cad ?? 0;
       let recommendation = "À surveiller";
       if (!listing?.is_published || listing.hidden) recommendation = "Publier ou réactiver";
-      else if (views >= 10 && leads === 0) recommendation = "Revoir prix / description";
+      else if (views >= 10 && leads === 0) recommendation = "Revoir description / photos";
       else if (views >= 6 && photoClicks <= 1) recommendation = "Améliorer photo principale";
       else if (leads > 0) recommendation = "Relancer rapidement";
       return {

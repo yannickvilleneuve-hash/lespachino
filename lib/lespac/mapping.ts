@@ -2,6 +2,7 @@ import { getLespacConfig } from "./config";
 import type { LespacListing, LespacState } from "./types";
 import type { InventoryDetail } from "@/lib/listings/queries";
 import type { PhotoWithUrl } from "@/lib/listings/photos";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 
 /** Valeurs autorisées pour attribut "Marque" chez Lespac (Véhicules - Camions). */
 const LESPAC_MARQUES_LOURDS = new Set([
@@ -84,8 +85,8 @@ export function mapToLespacListing({ detail, photos, publicListingUrl }: Mapping
     category,
     title: buildTitle(detail),
     description: detail.description_fr || undefined,
-    price: detail.price_cad > 0 ? detail.price_cad : null,
-    priceNote: null,
+    price: null,
+    priceNote: PUBLIC_PRICE_LABEL,
     videoURL: null,
     postalCode: cfg.dealer.postalCode,
     year: detail.year > 0 ? detail.year : null,

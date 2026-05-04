@@ -51,8 +51,6 @@ const CHANNEL_TIMING: Record<Channel, string> = {
   kijiji: "non connecté",
 };
 
-const PRICE_MARKUP = 1.25;
-
 export type ChannelAvailability = Record<
   Channel,
   {
@@ -68,12 +66,6 @@ export interface VehicleContext {
   km: number;
   color: string;
   category: string;
-  cost: number;
-}
-
-function suggestPrice(cost: number): number {
-  if (!cost || cost <= 0) return 0;
-  return Math.round((cost * PRICE_MARKUP) / 100) * 100;
 }
 
 export default function ListingForm({
@@ -220,24 +212,7 @@ export default function ListingForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div id="prix" className="scroll-mt-24">
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium">Prix CAD</label>
-          {vehicle.cost > 0 && (
-            <button
-              type="button"
-              onClick={() =>
-                setValue("price_cad", suggestPrice(vehicle.cost), {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              className="text-xs text-blue-700 hover:underline"
-              title={`Coûtant × ${PRICE_MARKUP} arrondi à $100`}
-            >
-              💡 Suggérer prix
-            </button>
-          )}
-        </div>
+        <label className="block text-sm font-medium mb-1">Prix interne CAD</label>
         <input
           type="number"
           step="0.01"

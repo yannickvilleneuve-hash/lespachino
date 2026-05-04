@@ -159,7 +159,6 @@ export default async function EditPage({
               km: detail.km,
               color: detail.color,
               category: detail.category,
-              cost: detail.cost,
             }}
           />
           <div className="mt-6 pt-6 border-t">

@@ -410,7 +410,6 @@ async function autoSyncChannels(
                 model: detail.model,
                 category: detail.category,
                 km: detail.km,
-                price_cad: detail.price_cad,
                 hero_url: detail.hero_url,
                 description_fr: detail.description_fr,
                 detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,

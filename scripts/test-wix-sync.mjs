@@ -29,6 +29,7 @@ const admin = createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 
 });
 
 const WIX_API = "https://www.wixapis.com";
+const PUBLIC_PRICE_LABEL = "prix sur demande";
 const targetUnit = process.argv[2];
 
 function publicPhotoUrl(path) {
@@ -108,7 +109,8 @@ async function run() {
       category: "",
       km: 0,
       color: "",
-      priceCad: listing.price_cad,
+      priceCad: null,
+      priceLabel: PUBLIC_PRICE_LABEL,
       descriptionFr: listing.description_fr,
       state: mapState(""),
       heroImage: publicPhotoUrl((photos.find((p) => p.is_hero) ?? photos[0]).storage_path),
@@ -116,7 +118,7 @@ async function run() {
       detailUrl: `${NEXT_PUBLIC_SITE_URL}/vehicule/${encodeURIComponent(l.unit)}`,
       dateAdded: null,
     };
-    console.log(`  save ${l.unit} (${photos.length} photos, ${listing.price_cad}$)`);
+    console.log(`  save ${l.unit} (${photos.length} photos, ${PUBLIC_PRICE_LABEL})`);
     await wixSave(item);
   }
 

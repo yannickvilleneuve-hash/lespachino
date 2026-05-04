@@ -30,7 +30,6 @@ export interface VehiclePostPayload {
   model: string;
   category: string;
   km: number;
-  price_cad: number;
   hero_url: string | null;
   description_fr: string;
   detail_url: string;
