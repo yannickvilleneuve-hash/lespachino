@@ -11,7 +11,11 @@ export async function fetchInventoryAlerts(): Promise<InventoryAlerts> {
     new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   const [leadsRes, errorsRes] = await Promise.all([
-    admin.from("lead").select("id", { count: "exact", head: true }).gte("created_at", iso(7)),
+    admin
+      .from("lead")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "new")
+      .gte("created_at", iso(7)),
     admin
       .from("activity_log")
       .select("id", { count: "exact", head: true })

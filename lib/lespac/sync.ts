@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { publicPhotoUrl } from "@/lib/listings/public";
+import { normalizeChannels } from "@/lib/listings/schema";
 import { mapToLespacListing } from "./mapping";
 import * as client from "./client";
 
@@ -56,13 +57,13 @@ export async function syncAllToLespac(): Promise<SyncResult[]> {
   const admin = createAdminClient();
   const { data: listings, error } = await admin
     .from("listing")
-    .select("unit, is_published, hidden")
+    .select("unit, is_published, hidden, channels")
     .order("unit");
   if (error) throw new Error(`listings fetch: ${error.message}`);
 
   const results: SyncResult[] = [];
   for (const l of listings) {
-    const shouldPublish = l.is_published && !l.hidden;
+    const shouldPublish = l.is_published && !l.hidden && normalizeChannels(l.channels).includes("lespac");
     results.push(await syncOneToLespac(l.unit, shouldPublish));
   }
   return results;

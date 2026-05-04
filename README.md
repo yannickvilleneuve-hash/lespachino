@@ -5,8 +5,8 @@ Application multi-sous-systèmes pour Pacman Camions Hino:
 - **Interne (authentifié, tailnet)**: gestion d'inventaire, prix, photos,
   publication multi-canal.
 - **Public (anon, planifié pour `camion-hino.ca`)**: catalogue type Lespac,
-  fiches véhicules avec formulaire de rappel, feeds XML/CSV pour Kijiji,
-  Lespac et Facebook Marketplace.
+  fiches véhicules avec formulaire de rappel, feeds XML/CSV pour Meta et
+  Google, plus sync API vers Wix/Lespac.
 
 ## Stack
 
@@ -46,7 +46,8 @@ Variables `.env.local` critiques:
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard → Settings → API |
 | SERTI | `SERTI_DB2_HOST/USER/PASS` | Config partagée avec calendrier-service |
 | Graph | `GRAPH_TENANT/CLIENT/SECRET/FROM` | Azure AD app enregistrée (même que calendrier) |
-| Site | `NEXT_PUBLIC_SITE_URL` | ex: `https://camion-hino.ca` en prod |
+| Site | `NEXT_PUBLIC_SITE_URL`, `ADMIN_SITE_URL` | URLs publique + admin |
+| Dealer | `DEALER_*` | nom, adresse, contact pour feeds et boutons |
 
 ## Production (pm2)
 
@@ -73,7 +74,8 @@ Schéma actuel (résumé):
 
 - `public.listing(unit PK, price_cad, description_fr, is_published, channels[], hidden)`
 - `public.vehicle_photo(id UUID PK, unit FK, storage_path UNIQUE, position, is_hero)`
-- `public.lead(id UUID PK, unit, name, phone, email, message, ip_hash, ...)`
+- `public.lead(id UUID PK, unit, name, phone, email, status, notes, next_follow_up_at, ip_hash, ...)`
+- `public.publication_job(id UUID PK, unit, channel, action, status, last_error, ...)`
 - Storage bucket `vehicle-photos` public (cataloge) + RLS policies
 
 **PK = unit (WGIUNM)** et non VIN — SERTI contient des VINs dupliqués en
@@ -94,18 +96,18 @@ node --env-file=.env.local scripts/seed-placeholder-photos.mjs --limit=20 --forc
 ### Interne (auth requise — middleware redirige vers `/login`)
 
 - `/dashboard` — point d'entrée
+- `/dashboard/publication-jobs` — jobs par canal, erreurs, relances
 - `/inventaire` — liste + filtres + tri
 - `/inventaire/[unit]` — édition prix/desc/canaux, photos (dnd-kit), publier
-- `/api/wgi/[vin]` — lookup direct SERTI (legacy Plan 1)
+- `/api/wgi/[vin]` — lookup direct SERTI authentifié (legacy Plan 1)
 
 ### Public (anon)
 
 - `/` — catalogue compact style Lespac (Option A)
 - `/vehicule/[unit]` — fiche publique, galerie, form rappel
-- `/feed/native.json` — notre feed JSON (toujours à jour)
-- `/feed/facebook.csv` — Meta Automotive Inventory Ads
-- `/feed/kijiji.xml` — **501** en attendant spec officielle
-- `/feed/lespac.xml` — **501** en attendant spec officielle
+- `/feed/native.json` — feed JSON du site natif
+- `/feed/facebook.csv` + `/feed/facebook.xml` — Meta Automotive Inventory Ads
+- `/feed/vehicles.xml` — Google Vehicle Listings Ads
 - `/robots.txt` + `/sitemap.xml`
 
 ## Tests + CI

@@ -106,7 +106,14 @@ describe("fetchInventory", () => {
     expect(rows[0].has_hero).toBe(false);
     expect(rows[0].views_7d).toBe(0);
     expect(rows[0].leads_7d).toBe(0);
-    expect(rows[0].channels).toEqual(["native", "fb", "lespac", "kijiji"]);
+    expect(rows[0].channels).toEqual([
+      "native",
+      "wix",
+      "fb_marketplace",
+      "fb_page",
+      "google_vla",
+      "lespac",
+    ]);
     expect(rows[0].channel_state).toEqual([]);
   });
 
@@ -153,7 +160,7 @@ describe("fetchInventory", () => {
     const rows = await fetchInventory();
     expect(rows[0].price_cad).toBe(45000);
     expect(rows[0].is_published).toBe(true);
-    expect(rows[0].channels).toEqual(["native", "fb"]);
+    expect(rows[0].channels).toEqual(["native", "fb_marketplace"]);
     expect(rows[0].photo_count).toBe(2);
     expect(rows[0].has_hero).toBe(true);
     expect(rows[0].views_7d).toBe(3);

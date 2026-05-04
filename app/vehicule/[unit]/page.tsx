@@ -3,6 +3,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
+import { getDealerConfig, telHref } from "@/lib/dealer/config";
 import { logVehicleView } from "@/lib/stats/views";
 import AppHeader from "@/app/app-header";
 import Gallery from "./gallery";
@@ -57,6 +58,8 @@ export default async function Page({
   const { unit } = await params;
   const detail = await fetchPublicListingByUnit(decodeURIComponent(unit));
   if (!detail) notFound();
+  const dealer = getDealerConfig();
+  const phoneHref = telHref(dealer.contact.phone);
 
   const hdrs = await headers();
   // Fire-and-forget — ne pas attendre pour render.
@@ -120,12 +123,18 @@ export default async function Page({
 
         <aside>
           <div className="bg-white border rounded p-4 sticky top-4">
-            <a
-              href="tel:+15555555555"
-              className="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-3 rounded font-semibold"
-            >
-              📞 Appeler
-            </a>
+            {phoneHref ? (
+              <a
+                href={phoneHref}
+                className="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-3 rounded font-semibold"
+              >
+                📞 Appeler
+              </a>
+            ) : (
+              <div className="block w-full bg-gray-200 text-gray-700 text-center py-3 rounded font-semibold">
+                Demande de rappel
+              </div>
+            )}
             <p className="text-xs text-gray-500 mt-1 text-center">
               Ou laisse-nous tes coordonnées — on te rappelle.
             </p>

@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import path from "node:path";
 
 export type PhotoVariant = "original" | "medium" | "thumb";
 
@@ -17,6 +18,33 @@ export interface ResizedVariants {
   medium: Buffer;
 }
 
+function watermarkEnabled(): boolean {
+  return process.env.PHOTO_WATERMARK_DISABLED !== "1";
+}
+
+async function resizeWebp(input: Buffer, spec: VariantSpec, watermark: boolean): Promise<Buffer> {
+  const resized = await sharp(input)
+    .rotate()
+    .resize({ width: spec.width, withoutEnlargement: true })
+    .webp({ quality: spec.quality })
+    .toBuffer();
+
+  if (!watermark || !watermarkEnabled()) return resized;
+  const meta = await sharp(resized).metadata();
+  if (!meta.width || !meta.height || meta.width < 500) return resized;
+
+  const logoWidth = Math.max(120, Math.round(meta.width * 0.16));
+  const logo = await sharp(path.join(process.cwd(), "public/logo1.jpg"))
+    .resize({ width: logoWidth, withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer();
+
+  return sharp(resized)
+    .composite([{ input: logo, gravity: "southeast" }])
+    .webp({ quality: spec.quality })
+    .toBuffer();
+}
+
 /**
  * Génère 2 dérivés WebP à partir d'un buffer image (JPEG/PNG/WebP).
  * - thumb: 400px largeur (admin grid, fiche miniatures, retina mobile cards)
@@ -25,16 +53,8 @@ export interface ResizedVariants {
  */
 export async function generateVariants(input: Buffer): Promise<ResizedVariants> {
   const [thumb, medium] = await Promise.all([
-    sharp(input)
-      .rotate()
-      .resize({ width: VARIANT_SPECS.thumb.width, withoutEnlargement: true })
-      .webp({ quality: VARIANT_SPECS.thumb.quality })
-      .toBuffer(),
-    sharp(input)
-      .rotate()
-      .resize({ width: VARIANT_SPECS.medium.width, withoutEnlargement: true })
-      .webp({ quality: VARIANT_SPECS.medium.quality })
-      .toBuffer(),
+    resizeWebp(input, VARIANT_SPECS.thumb, false),
+    resizeWebp(input, VARIANT_SPECS.medium, true),
   ]);
   return { thumb, medium };
 }

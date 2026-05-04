@@ -66,35 +66,56 @@ export type Database = {
       lead: {
         Row: {
           created_at: string;
+          assigned_to_email: string | null;
+          closed_at: string | null;
           email: string | null;
           id: string;
           ip_hash: string | null;
+          last_contacted_at: string | null;
           message: string;
           name: string;
+          next_follow_up_at: string | null;
+          notes: string;
           phone: string | null;
+          status: string;
           unit: string;
+          updated_at: string;
           user_agent: string | null;
         };
         Insert: {
+          assigned_to_email?: string | null;
+          closed_at?: string | null;
           created_at?: string;
           email?: string | null;
           id?: string;
           ip_hash?: string | null;
+          last_contacted_at?: string | null;
           message?: string;
           name: string;
+          next_follow_up_at?: string | null;
+          notes?: string;
           phone?: string | null;
+          status?: string;
           unit: string;
+          updated_at?: string;
           user_agent?: string | null;
         };
         Update: {
+          assigned_to_email?: string | null;
+          closed_at?: string | null;
           created_at?: string;
           email?: string | null;
           id?: string;
           ip_hash?: string | null;
+          last_contacted_at?: string | null;
           message?: string;
           name?: string;
+          next_follow_up_at?: string | null;
+          notes?: string;
           phone?: string | null;
+          status?: string;
           unit?: string;
+          updated_at?: string;
           user_agent?: string | null;
         };
         Relationships: [];
@@ -195,6 +216,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      publication_job: {
+        Row: {
+          action: string;
+          attempts: number;
+          channel: string;
+          completed_at: string | null;
+          created_at: string;
+          created_by_email: string | null;
+          id: string;
+          last_error: string | null;
+          max_attempts: number;
+          next_retry_at: string | null;
+          payload: Json;
+          started_at: string | null;
+          status: string;
+          unit: string;
+          updated_at: string;
+        };
+        Insert: {
+          action: string;
+          attempts?: number;
+          channel: string;
+          completed_at?: string | null;
+          created_at?: string;
+          created_by_email?: string | null;
+          id?: string;
+          last_error?: string | null;
+          max_attempts?: number;
+          next_retry_at?: string | null;
+          payload?: Json;
+          started_at?: string | null;
+          status?: string;
+          unit: string;
+          updated_at?: string;
+        };
+        Update: {
+          action?: string;
+          attempts?: number;
+          channel?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          created_by_email?: string | null;
+          id?: string;
+          last_error?: string | null;
+          max_attempts?: number;
+          next_retry_at?: string | null;
+          payload?: Json;
+          started_at?: string | null;
+          status?: string;
+          unit?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       view_event: {
         Row: {
           created_at: string;
@@ -257,7 +332,16 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      claim_photo_session_upload: {
+        Args: { p_token: string };
+        Returns: {
+          unit: string;
+          expires_at: string;
+          max_uploads: number;
+          used_count: number;
+          created_by: string | null;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;

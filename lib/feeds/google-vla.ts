@@ -1,4 +1,5 @@
 import type { PublicListing } from "@/lib/listings/public";
+import { getDealerConfig } from "@/lib/dealer/config";
 
 /**
  * Builder de feed RSS 2.0 + namespace Google Merchant (`g:`).
@@ -13,14 +14,6 @@ interface DealerAddress {
   postalCode: string;
   country: string;
 }
-
-const DEFAULT_ADDRESS: DealerAddress = {
-  addr1: "Centre du camion Hino",
-  city: "Montréal",
-  region: "QC",
-  postalCode: "H0H 0H0",
-  country: "CA",
-};
 
 function xmlEscape(s: string): string {
   return s
@@ -57,7 +50,7 @@ export function buildGoogleVlaFeed({
   listings,
   title = "Centre du camion Hino — Inventaire",
   description = "Camions commerciaux Hino neufs et usagés, boîtes, remorques.",
-  address = DEFAULT_ADDRESS,
+  address = getDealerConfig().address,
 }: BuildFeedOptions): string {
   const items = listings
     .map((l) => {

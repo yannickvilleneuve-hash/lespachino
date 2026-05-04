@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateVariants, variantPath } from "@/lib/photos/resize";
 import { logActivity } from "@/lib/audit/log";
 import { recordChannelState } from "@/lib/listings/channel-state";
+import { DEFAULT_CHANNELS } from "@/lib/listings/schema";
 import {
   listAll,
   getByListingId,
@@ -174,7 +175,7 @@ export async function importLespacListing(
   // Upsert listing local — écrase price + description avec les valeurs Lespac.
   const description = (detail.description ?? "").trim();
   const price = Number(detail.price ?? 0) || 0;
-  const channels = ["native", "fb", "lespac", "kijiji"];
+  const channels = DEFAULT_CHANNELS;
   const { error: upsertErr } = await supabase
     .from("listing")
     .upsert(

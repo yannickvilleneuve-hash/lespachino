@@ -6,6 +6,7 @@ import {
 } from "@/lib/serti/wgi";
 import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
 import type { Database } from "@/lib/supabase/types";
+import { normalizeChannels, type Channel } from "./schema";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
 type PhotoRow = Database["public"]["Tables"]["vehicle_photo"]["Row"];
@@ -24,6 +25,11 @@ export interface PublicListingDetail extends PublicListing {
   photos: { url_medium: string; url_thumb: string; url_original: string; is_hero: boolean }[];
 }
 
+export interface PublicListingOptions {
+  /** Canal à inclure. `native` par défaut pour le site public; `null` ignore le filtre. */
+  channel?: Channel | null;
+}
+
 export function publicPhotoUrl(storagePath: string, variant: PhotoVariant = "original"): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!base) throw new Error("NEXT_PUBLIC_SUPABASE_URL requis");
@@ -36,13 +42,16 @@ function stripCost<V extends Vehicle>(v: V): PublicVehicle {
   return rest;
 }
 
-export async function fetchPublicListings(): Promise<PublicListing[]> {
+export async function fetchPublicListings(options: PublicListingOptions = {}): Promise<PublicListing[]> {
+  const channel = options.channel === undefined ? "native" : options.channel;
   const supabase = createAdminClient();
-  const listingsRes = await supabase
+  let query = supabase
     .from("listing")
     .select("unit, price_cad, description_fr, is_published, hidden")
     .eq("is_published", true)
     .eq("hidden", false);
+  if (channel) query = query.contains("channels", [channel]);
+  const listingsRes = await query;
   if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
   // Filtre physique appliqué via SERTI WGIAVL='1' (cf listInventoryVehicles).
   // Quand un camion est livré, SERTI bascule WGIAVL='2' et il disparaît du
@@ -85,12 +94,16 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   return rows;
 }
 
-export async function fetchPublicListingByUnit(unit: string): Promise<PublicListingDetail | null> {
+export async function fetchPublicListingByUnit(
+  unit: string,
+  options: PublicListingOptions = {},
+): Promise<PublicListingDetail | null> {
+  const channel = options.channel === undefined ? "native" : options.channel;
   const supabase = createAdminClient();
   const [listingRes, photosRes, vehicle] = await Promise.all([
     supabase
       .from("listing")
-      .select("price_cad, description_fr, is_published, hidden")
+      .select("price_cad, description_fr, is_published, hidden, channels")
       .eq("unit", unit)
       .maybeSingle(),
     supabase
@@ -105,6 +118,7 @@ export async function fetchPublicListingByUnit(unit: string): Promise<PublicList
 
   const l = listingRes.data;
   if (!l || !l.is_published || l.hidden) return null;
+  if (channel && !normalizeChannels(l.channels).includes(channel)) return null;
   // WGIAVL='1' chez SERTI = présent. Quand SERTI bascule à '2' (livré),
   // getVehicleByUnit le retournera quand même (pas filtré), donc on
   // vérifie ici aussi pour exclure les véhicules hors lot du public.

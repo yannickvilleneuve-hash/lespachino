@@ -47,6 +47,34 @@ interface WgiRow {
 const SELECT_COLS =
   "WGISER, WGIUNM, WGIMKE, WGIMDL, WGIYEA, WGIODM, WGICAT, WGISTA, WGICLD, WGICST, WGIDAV, WGIAVL, WGIAVC";
 
+interface CacheEntry<T> {
+  expiresAt: number;
+  value: T;
+}
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+function cacheTtlMs(): number {
+  if (process.env.NODE_ENV === "test") return 0;
+  const parsed = Number(process.env.SERTI_CACHE_TTL_MS ?? "60000");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const ttl = cacheTtlMs();
+  if (ttl <= 0) return load();
+  const now = Date.now();
+  const hit = cache.get(key) as CacheEntry<T> | undefined;
+  if (hit && hit.expiresAt > now) return hit.value;
+  const value = await load();
+  cache.set(key, { value, expiresAt: now + ttl });
+  return value;
+}
+
+export function clearSertiCache(): void {
+  cache.clear();
+}
+
 function s(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
@@ -99,40 +127,50 @@ function mapRow(row: WgiRow): Vehicle {
 }
 
 export async function getVehicleByVin(vin: string): Promise<Vehicle | null> {
-  const row = await queryOne<WgiRow>(
-    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE TRIM(WGISER) = ?`,
-    [vin.trim()],
-  );
-  return row ? mapRow(row) : null;
+  const key = `vin:${vin.trim().toUpperCase()}`;
+  return cached(key, async () => {
+    const row = await queryOne<WgiRow>(
+      `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE TRIM(WGISER) = ?`,
+      [vin.trim()],
+    );
+    return row ? mapRow(row) : null;
+  });
 }
 
 export async function getVehicleByUnit(unit: string): Promise<Vehicle | null> {
-  const row = await queryOne<WgiRow>(
-    `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE TRIM(WGIUNM) = ?`,
-    [unit.trim()],
-  );
-  return row ? mapRow(row) : null;
+  const key = `unit:${unit.trim().toUpperCase()}`;
+  return cached(key, async () => {
+    const row = await queryOne<WgiRow>(
+      `SELECT ${SELECT_COLS} FROM SDSFC.WGI WHERE TRIM(WGIUNM) = ?`,
+      [unit.trim()],
+    );
+    return row ? mapRow(row) : null;
+  });
 }
 
 /** Véhicules vraiment disponibles à la vente: WGISTA='A' ET physiquement
  *  présents (WGIAVL='1'). Utiliser pour les compteurs de stock dispo. */
 export async function listActiveVehicles(): Promise<Vehicle[]> {
-  const rows = await query<WgiRow>(
-    `SELECT ${SELECT_COLS} FROM SDSFC.WGI
-     WHERE WGISTA = 'A' AND WGIAVL = '1'
-     ORDER BY WGIUNM`,
-  );
-  return rows.map(mapRow);
+  return cached("list:active", async () => {
+    const rows = await query<WgiRow>(
+      `SELECT ${SELECT_COLS} FROM SDSFC.WGI
+       WHERE WGISTA = 'A' AND WGIAVL = '1'
+       ORDER BY WGIUNM`,
+    );
+    return rows.map(mapRow);
+  });
 }
 
 /** Inventaire admin: tout ce qui est physiquement au lot (WGIAVL='1').
  *  Inclut A (dispo), R (en soumission), S (vendu mais pas encore livré).
  *  Quand SERTI bascule WGIAVL='2' (livré), l'unité disparaît automatiquement. */
 export async function listInventoryVehicles(): Promise<Vehicle[]> {
-  const rows = await query<WgiRow>(
-    `SELECT ${SELECT_COLS} FROM SDSFC.WGI
-     WHERE WGIAVL = '1'
-     ORDER BY WGIUNM`,
-  );
-  return rows.map(mapRow);
+  return cached("list:inventory", async () => {
+    const rows = await query<WgiRow>(
+      `SELECT ${SELECT_COLS} FROM SDSFC.WGI
+       WHERE WGIAVL = '1'
+       ORDER BY WGIUNM`,
+    );
+    return rows.map(mapRow);
+  });
 }

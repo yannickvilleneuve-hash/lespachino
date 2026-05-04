@@ -1,4 +1,5 @@
 import { fetchPublicListings, type PublicListing } from "@/lib/listings/public";
+import { getDealerConfig } from "@/lib/dealer/config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
@@ -15,14 +16,6 @@ export const revalidate = 300;
  * - condition: "new" | "used".
  * - availability: "in stock" | "out of stock" | "preorder".
  */
-
-const ADDRESS = {
-  addr1: "Centre du camion Hino",
-  city: "Montréal",
-  region: "QC",
-  postal_code: "H0H 0H0",
-  country: "CA",
-};
 
 function csvEscape(v: string): string {
   if (v.includes(",") || v.includes('"') || v.includes("\n")) {
@@ -47,11 +40,12 @@ function mapBodyStyle(category: string): string {
 }
 
 export async function GET(request: Request) {
-  const all = await fetchPublicListings();
+  const all = await fetchPublicListings({ channel: "fb_marketplace" });
   const listings = all.filter(
     (l): l is PublicListing & { hero_url: string } => l.hero_url !== null,
   );
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+  const dealer = getDealerConfig();
 
   const headers = [
     "vehicle_id",
@@ -108,11 +102,11 @@ export async function GET(request: Request) {
       l.vin,
       l.color || "",
       body,
-      ADDRESS.addr1,
-      ADDRESS.city,
-      ADDRESS.region,
-      ADDRESS.postal_code,
-      ADDRESS.country,
+      dealer.address.addr1,
+      dealer.address.city,
+      dealer.address.region,
+      dealer.address.postalCode,
+      dealer.address.country,
     ].map(csvEscape);
 
     rows.push(row.join(","));

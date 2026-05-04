@@ -4,8 +4,7 @@
 Next.js **16** with Turbopack. Breaking changes vs older versions:
 
 - `params`/`searchParams` are `Promise<...>` in Server Components. Always `await`.
-- `middleware.ts` déprécié au profit de `proxy.ts` — on utilise encore
-  `middleware.ts` pour l'instant mais à migrer.
+- `middleware.ts` est déprécié; utiliser `proxy.ts`.
 - `cookies()` from `next/headers` retourne une Promise. Toujours `await`.
 - `serverExternalPackages` (pas `experimental.serverComponentsExternalPackages`)
   pour exclure native modules du bundle (ex: `node-jt400`, `java`).
@@ -76,5 +75,5 @@ lead(id, unit, name, phone, email, message, ip_hash, user_agent, created_at)
 
 - Rôles admin/vendeur séparés (Plan 4)
 - DNS `camion-hino.ca` public + Tailscale Funnel (bloqué accès GoDaddy)
-- Feeds Kijiji/Lespac (spec requise — stubs retournent 501)
+- Kijiji direct (spec/API requise). Lespac passe par son API JSON.
 - Photo resize serveur (Plan 5 optim)

@@ -11,25 +11,23 @@ export type LeadResult = { ok: true } | { ok: false; error: string };
 
 const LEAD_INBOX = process.env.GRAPH_FROM ?? "service@camion-hino.ca";
 
-// Rate limit in-memory: 5 leads / heure / IP. Reset par redémarrage (pm2) = OK
-// pour MVP. Plus tard: Supabase table ou Redis si multi-instance.
 const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const rateLimitByIp = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_HOURS = 1;
 
-function checkRateLimit(ipHash: string | null): boolean {
+async function checkRateLimit(ipHash: string | null): Promise<boolean> {
   if (!ipHash) return true; // pas d'IP = dev/proxy weird → on laisse passer
-  const now = Date.now();
-  const history = (rateLimitByIp.get(ipHash) ?? []).filter(
-    (t) => now - t < RATE_LIMIT_WINDOW_MS,
-  );
-  if (history.length >= RATE_LIMIT_MAX) {
-    rateLimitByIp.set(ipHash, history);
-    return false;
+  const admin = createAdminClient();
+  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+  const { count, error } = await admin
+    .from("lead")
+    .select("id", { count: "exact", head: true })
+    .eq("ip_hash", ipHash)
+    .gte("created_at", since);
+  if (error) {
+    console.error("lead rate limit check failed", error.message);
+    return true;
   }
-  history.push(now);
-  rateLimitByIp.set(ipHash, history);
-  return true;
+  return (count ?? 0) < RATE_LIMIT_MAX;
 }
 
 function hashIp(ip: string | null | undefined): string | null {
@@ -57,7 +55,8 @@ function renderLeadEmail(args: {
   const { unit, name, phone, email, message } = args;
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const editUrl = `/inventaire/${encodeURIComponent(unit)}`;
+  const baseUrl = process.env.ADMIN_SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const editUrl = `${baseUrl}/inventaire/${encodeURIComponent(unit)}`;
   return `<!doctype html>
 <html><body style="font-family:Arial,sans-serif;max-width:560px;margin:18px auto;color:#222;">
 <h2 style="margin:0 0 12px 0;font-size:18px;">Nouveau lead — unit <strong>${esc(unit)}</strong></h2>
@@ -98,7 +97,7 @@ export async function submitLead(formData: FormData): Promise<LeadResult> {
   const ip = hdrs.get("x-forwarded-for")?.split(",")[0].trim() ?? hdrs.get("x-real-ip") ?? null;
   const ipHash = hashIp(ip);
 
-  if (!checkRateLimit(ipHash)) {
+  if (!(await checkRateLimit(ipHash))) {
     return { ok: false, error: "Trop de demandes — réessaye plus tard." };
   }
 

@@ -10,7 +10,7 @@ export const revalidate = 300;
  * automotive qui supportent RSS vehicle listings.
  */
 export async function GET(request: Request) {
-  const all = await fetchPublicListings();
+  const all = await fetchPublicListings({ channel: "google_vla" });
   const listings = all.filter(
     (l): l is PublicListing & { hero_url: string } => l.hero_url !== null,
   );

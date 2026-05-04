@@ -99,19 +99,13 @@ export async function uploadPhotoBySession(
 
   const admin = createAdminClient();
 
-  // Vérifie + claim la session (incrémente used_count atomiquement).
+  // Vérifie + claim la session atomiquement pour éviter les uploads concurrents
+  // au-delà de max_uploads.
   const { data: session, error: sErr } = await admin
-    .from("photo_session")
-    .select("unit, expires_at, max_uploads, used_count, created_by")
-    .eq("token", token)
+    .rpc("claim_photo_session_upload", { p_token: token })
     .maybeSingle();
-  if (sErr || !session) return { ok: false, error: "session introuvable" };
-  if (new Date(session.expires_at).getTime() < Date.now()) {
-    return { ok: false, error: "session expirée" };
-  }
-  if (session.used_count >= session.max_uploads) {
-    return { ok: false, error: "limite atteinte pour cette session" };
-  }
+  if (sErr) return { ok: false, error: `session: ${sErr.message}` };
+  if (!session) return { ok: false, error: "session introuvable, expirée ou limite atteinte" };
 
   const unit = session.unit;
 
@@ -164,11 +158,6 @@ export async function uploadPhotoBySession(
     await admin.storage.from(PHOTO_BUCKET).remove([path, thumbPath, mediumPath]);
     return { ok: false, error: `insert: ${insertErr.message}` };
   }
-
-  await admin
-    .from("photo_session")
-    .update({ used_count: session.used_count + 1 })
-    .eq("token", token);
 
   await logActivity({
     userEmail: null,

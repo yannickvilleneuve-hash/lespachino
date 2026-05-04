@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { listingFormSchema, type ListingFormInput } from "./schema";
+import { listingFormSchema, normalizeChannels, type Channel, type ListingFormInput } from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
 import { generateVariants, variantPath } from "@/lib/photos/resize";
 import { logActivity } from "@/lib/audit/log";
@@ -15,6 +15,13 @@ import { postVehicleToPage, isPagePostReady } from "@/lib/meta/page";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
 import { triggerGoogleFeedRefresh, isGooglePushReady } from "@/lib/google/push";
 import { recordChannelState } from "@/lib/listings/channel-state";
+import {
+  createPublicationJob,
+  finishPublicationJob,
+  markPublicationJobRunning,
+  type PublicationJobAction,
+  type PublicationJobStatus,
+} from "@/lib/listings/publication-jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
@@ -22,6 +29,15 @@ const PHOTO_BUCKET = "vehicle-photos";
 const MAX_PHOTOS_PER_UNIT = 15;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+const EXTERNAL_CHANNELS: Channel[] = [
+  "wix",
+  "fb_marketplace",
+  "fb_page",
+  "google_vla",
+  "lespac",
+  "kijiji",
+];
 
 async function requireUser() {
   const supabase = await createClient();
@@ -37,11 +53,18 @@ async function requireUser() {
 export async function upsertListing(unit: string, input: ListingFormInput): Promise<void> {
   const parsed = listingFormSchema.parse(input);
   const { supabase, userId, userEmail } = await requireUser();
+  const previousRes = await supabase
+    .from("listing")
+    .select("is_published, channels")
+    .eq("unit", unit)
+    .maybeSingle();
+  if (previousRes.error) throw new Error(`listing fetch: ${previousRes.error.message}`);
+  const previousChannels = normalizeChannels(previousRes.data?.channels);
   const { error } = await supabase.from("listing").upsert({
     unit,
     price_cad: parsed.price_cad,
     description_fr: parsed.description_fr,
-    channels: parsed.channels,
+    channels: normalizeChannels(parsed.channels),
     updated_by: userId,
   });
   if (error) throw new Error(`upsertListing: ${error.message}`);
@@ -56,6 +79,16 @@ export async function upsertListing(unit: string, input: ListingFormInput): Prom
       channels: parsed.channels,
     },
   });
+  if (previousRes.data?.is_published) {
+    void autoSyncChannels(
+      supabase,
+      unit,
+      true,
+      userEmail,
+      normalizeChannels(parsed.channels),
+      previousChannels,
+    );
+  }
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
 }
@@ -65,14 +98,20 @@ export async function togglePublished(
   next: boolean,
 ): Promise<{ ok: true } | { ok: false; error: PublicationError }> {
   const { supabase, userId, userEmail } = await requireUser();
+  let selectedChannels: Channel[] = [];
 
   if (next) {
     const [listingRes, photosRes] = await Promise.all([
-      supabase.from("listing").select("price_cad, description_fr").eq("unit", unit).maybeSingle(),
+      supabase
+        .from("listing")
+        .select("price_cad, description_fr, channels")
+        .eq("unit", unit)
+        .maybeSingle(),
       supabase.from("vehicle_photo").select("is_hero").eq("unit", unit),
     ]);
     if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
     if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
+    selectedChannels = normalizeChannels(listingRes.data?.channels);
 
     const err = validatePublication({
       price_cad: listingRes.data?.price_cad ?? 0,
@@ -80,6 +119,14 @@ export async function togglePublished(
       photos: photosRes.data,
     });
     if (err) return { ok: false, error: err };
+  } else {
+    const listingRes = await supabase
+      .from("listing")
+      .select("channels")
+      .eq("unit", unit)
+      .maybeSingle();
+    if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
+    selectedChannels = normalizeChannels(listingRes.data?.channels);
   }
 
   const { error } = await supabase.from("listing").upsert({
@@ -98,210 +145,306 @@ export async function togglePublished(
   await recordChannelState(supabase, {
     unit,
     channel: "native",
-    status: next ? "published" : "unpublished",
+    status: next ? (selectedChannels.includes("native") ? "published" : "skipped") : "unpublished",
+    error: next && !selectedChannels.includes("native") ? "Canal non sélectionné" : null,
   });
   // Sync auto vers les canaux configurés (best-effort, ne bloque pas la publication).
-  void autoSyncChannels(supabase, unit, next, userEmail);
+  void autoSyncChannels(supabase, unit, next, userEmail, selectedChannels, selectedChannels);
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
   return { ok: true };
 }
 
+type ChannelResult = { action: string; error?: string; reason?: string };
+
+function resultStatus(result: ChannelResult): PublicationJobStatus {
+  if (result.action === "error") return "failed";
+  if (result.action === "skipped") return "skipped";
+  return "succeeded";
+}
+
+function resultMessage(result: ChannelResult): string | null {
+  return result.error ?? result.reason ?? null;
+}
+
+function jobAction(shouldPublish: boolean, channel: Channel): PublicationJobAction {
+  if (channel === "fb_page" && shouldPublish) return "post";
+  if (channel === "fb_marketplace" || channel === "google_vla") return "refresh";
+  return shouldPublish ? "publish" : "unpublish";
+}
+
+async function runChannelJob<T extends ChannelResult>(
+  supabase: SupabaseClient<Database>,
+  unit: string,
+  channel: Channel,
+  action: PublicationJobAction,
+  userEmail: string | null,
+  task: () => Promise<T>,
+): Promise<T> {
+  const jobId = await createPublicationJob(supabase, {
+    unit,
+    channel,
+    action,
+    createdByEmail: userEmail,
+  });
+  await markPublicationJobRunning(supabase, jobId);
+  try {
+    const result = await task();
+    await finishPublicationJob(supabase, jobId, resultStatus(result), resultMessage(result));
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await finishPublicationJob(supabase, jobId, "failed", msg);
+    throw err;
+  }
+}
+
+async function recordSkipped(
+  supabase: SupabaseClient<Database>,
+  unit: string,
+  channel: Channel,
+  reason: string,
+): Promise<void> {
+  await recordChannelState(supabase, { unit, channel, status: "skipped", error: reason });
+}
+
 /**
- * Push un listing vers tous les canaux disponibles.
- * Wix + Lespac: per-listing instant API call.
- * Meta + Google: trigger refresh global du feed (re-pulls dans minutes).
- * Fire-and-forget: on log les résultats mais on n'échoue pas le caller.
+ * Synchronise les canaux sélectionnés. Les canaux retirés d'un listing déjà
+ * publié sont explicitement dépubliés quand le connecteur le supporte.
  */
 async function autoSyncChannels(
   supabase: SupabaseClient<Database>,
   unit: string,
-  shouldPublish: boolean,
+  isListingPublished: boolean,
   userEmail: string | null,
+  targetChannels: Channel[],
+  previousChannels: Channel[],
 ): Promise<void> {
-  if (isWixReady()) {
-    try {
-      const result = await syncOneToWix(unit, shouldPublish);
-      await logActivity({
-        userEmail,
-        action: "sync_wix",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: result.action, error: result.error },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "wix",
-        status: result.action,
-        error: result.error ?? null,
-      });
-    } catch (err) {
-      const msg = (err as Error).message;
-      await logActivity({
-        userEmail,
-        action: "sync_wix",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: "error", error: msg },
-      });
-      await recordChannelState(supabase, { unit, channel: "wix", status: "error", error: msg });
+  const target = new Set(targetChannels);
+  const previous = new Set(previousChannels);
+
+  for (const channel of EXTERNAL_CHANNELS) {
+    const selected = target.has(channel);
+    const wasSelected = previous.has(channel);
+    const shouldPublish = isListingPublished && selected;
+    if (!shouldPublish && !wasSelected) {
+      if (isListingPublished) await recordSkipped(supabase, unit, channel, "Canal non sélectionné");
+      continue;
     }
-  }
-  if (isLespacReady()) {
-    try {
-      const result = await syncOneToLespac(unit, shouldPublish);
-      await logActivity({
-        userEmail,
-        action: "sync_lespac",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: result.action, error: result.error },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "lespac",
-        status: result.action,
-        external_id: result.listingId != null ? String(result.listingId) : null,
-        error: result.error ?? null,
-      });
-    } catch (err) {
-      const msg = (err as Error).message;
-      await logActivity({
-        userEmail,
-        action: "sync_lespac",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: "error", error: msg },
-      });
-      await recordChannelState(supabase, { unit, channel: "lespac", status: "error", error: msg });
+
+    if (channel === "wix") {
+      if (!isWixReady()) {
+        await recordSkipped(supabase, unit, channel, "Variables Wix manquantes");
+        continue;
+      }
+      try {
+        const result = await runChannelJob(supabase, unit, channel, jobAction(shouldPublish, channel), userEmail, () =>
+          syncOneToWix(unit, shouldPublish),
+        );
+        await logActivity({
+          userEmail,
+          action: "sync_wix",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: result.action, error: result.error },
+        });
+        await recordChannelState(supabase, {
+          unit,
+          channel,
+          status: result.action,
+          error: result.error ?? null,
+        });
+      } catch (err) {
+        const msg = (err as Error).message;
+        await logActivity({
+          userEmail,
+          action: "sync_wix",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: "error", error: msg },
+        });
+        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
+      }
+      continue;
     }
-  }
-  if (isMetaPushReady()) {
-    try {
-      const result = await triggerMetaFeedRefresh();
-      const errMsg = "error" in result ? result.error : undefined;
-      await logActivity({
-        userEmail,
-        action: "sync_meta",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: result.action, error: errMsg },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "fb_marketplace",
-        status: shouldPublish ? result.action : "unpublished",
-        error: errMsg ?? null,
-      });
-    } catch (err) {
-      const msg = (err as Error).message;
-      await logActivity({
-        userEmail,
-        action: "sync_meta",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: "error", error: msg },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "fb_marketplace",
-        status: "error",
-        error: msg,
-      });
+
+    if (channel === "lespac") {
+      if (!isLespacReady()) {
+        await recordSkipped(supabase, unit, channel, "Variables Lespac manquantes");
+        continue;
+      }
+      try {
+        const result = await runChannelJob(supabase, unit, channel, jobAction(shouldPublish, channel), userEmail, () =>
+          syncOneToLespac(unit, shouldPublish),
+        );
+        await logActivity({
+          userEmail,
+          action: "sync_lespac",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: result.action, error: result.error },
+        });
+        await recordChannelState(supabase, {
+          unit,
+          channel,
+          status: result.action,
+          external_id: result.listingId != null ? String(result.listingId) : null,
+          error: result.error ?? null,
+        });
+      } catch (err) {
+        const msg = (err as Error).message;
+        await logActivity({
+          userEmail,
+          action: "sync_lespac",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: "error", error: msg },
+        });
+        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
+      }
+      continue;
     }
-  }
-  if (shouldPublish && isPagePostReady()) {
-    try {
-      const detail = await fetchPublicListingByUnit(unit);
-      const result = detail
-        ? await postVehicleToPage({
-            unit: detail.unit,
-            year: detail.year,
-            make: detail.make,
-            model: detail.model,
-            category: detail.category,
-            km: detail.km,
-            price_cad: detail.price_cad,
-            hero_url: detail.hero_url,
-            description_fr: detail.description_fr,
-            detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,
-          })
-        : ({ action: "skipped", reason: "listing introuvable" } as const);
-      const errMsg = "error" in result ? result.error : undefined;
-      await logActivity({
-        userEmail,
-        action: "post_fb_page",
-        targetType: "listing",
-        targetId: unit,
-        details: {
-          trigger: "auto",
-          action: result.action,
+
+    if (channel === "fb_marketplace") {
+      if (!isMetaPushReady()) {
+        await recordSkipped(supabase, unit, channel, "Variables Meta feed manquantes");
+        continue;
+      }
+      try {
+        const result = await runChannelJob(supabase, unit, channel, "refresh", userEmail, () =>
+          triggerMetaFeedRefresh(),
+        );
+        const errMsg = resultMessage(result);
+        await logActivity({
+          userEmail,
+          action: "sync_meta",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: result.action, error: errMsg },
+        });
+        await recordChannelState(supabase, {
+          unit,
+          channel,
+          status: shouldPublish ? result.action : "unpublished",
           error: errMsg,
-        },
-      });
-      const postId =
-        "postId" in result && typeof result.postId === "string" ? result.postId : null;
-      const pageId = process.env.META_PAGE_ID;
-      const externalUrl =
-        postId && pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : null;
-      await recordChannelState(supabase, {
-        unit,
-        channel: "fb_page",
-        status: result.action,
-        external_id: postId,
-        external_url: externalUrl,
-        error: errMsg ?? null,
-      });
-    } catch (err) {
-      const msg = (err as Error).message;
-      await logActivity({
-        userEmail,
-        action: "post_fb_page",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: "error", error: msg },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "fb_page",
-        status: "error",
-        error: msg,
-      });
+        });
+      } catch (err) {
+        const msg = (err as Error).message;
+        await logActivity({
+          userEmail,
+          action: "sync_meta",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: "error", error: msg },
+        });
+        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
+      }
+      continue;
     }
-  }
-  if (isGooglePushReady()) {
-    try {
-      const result = await triggerGoogleFeedRefresh();
-      const errMsg = "error" in result ? result.error : undefined;
-      await logActivity({
-        userEmail,
-        action: "sync_google",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: result.action, error: errMsg },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "google_vla",
-        status: shouldPublish ? result.action : "unpublished",
-        error: errMsg ?? null,
-      });
-    } catch (err) {
-      const msg = (err as Error).message;
-      await logActivity({
-        userEmail,
-        action: "sync_google",
-        targetType: "listing",
-        targetId: unit,
-        details: { trigger: "auto", action: "error", error: msg },
-      });
-      await recordChannelState(supabase, {
-        unit,
-        channel: "google_vla",
-        status: "error",
-        error: msg,
-      });
+
+    if (channel === "fb_page") {
+      if (!shouldPublish) {
+        await recordChannelState(supabase, {
+          unit,
+          channel,
+          status: "unpublished",
+          error: "Les posts Facebook déjà créés ne sont pas supprimés automatiquement.",
+        });
+        continue;
+      }
+      if (!isPagePostReady()) {
+        await recordSkipped(supabase, unit, channel, "Variables Meta Page manquantes");
+        continue;
+      }
+      try {
+        const detail = await fetchPublicListingByUnit(unit, { channel: "fb_page" });
+        const result = await runChannelJob(supabase, unit, channel, "post", userEmail, () =>
+          detail
+            ? postVehicleToPage({
+                unit: detail.unit,
+                year: detail.year,
+                make: detail.make,
+                model: detail.model,
+                category: detail.category,
+                km: detail.km,
+                price_cad: detail.price_cad,
+                hero_url: detail.hero_url,
+                description_fr: detail.description_fr,
+                detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,
+              })
+            : Promise.resolve({ action: "skipped", reason: "listing introuvable" } as const),
+        );
+        const errMsg = resultMessage(result);
+        await logActivity({
+          userEmail,
+          action: "post_fb_page",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: result.action, error: errMsg },
+        });
+        const postId = "postId" in result && typeof result.postId === "string" ? result.postId : null;
+        const pageId = process.env.META_PAGE_ID;
+        const externalUrl = postId && pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : null;
+        await recordChannelState(supabase, {
+          unit,
+          channel,
+          status: result.action,
+          external_id: postId,
+          external_url: externalUrl,
+          error: errMsg,
+        });
+      } catch (err) {
+        const msg = (err as Error).message;
+        await logActivity({
+          userEmail,
+          action: "post_fb_page",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: "error", error: msg },
+        });
+        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
+      }
+      continue;
     }
+
+    if (channel === "google_vla") {
+      if (!isGooglePushReady()) {
+        await recordSkipped(supabase, unit, channel, "Variables Google Merchant manquantes");
+        continue;
+      }
+      try {
+        const result = await runChannelJob(supabase, unit, channel, "refresh", userEmail, () =>
+          triggerGoogleFeedRefresh(),
+        );
+        const errMsg = resultMessage(result);
+        await logActivity({
+          userEmail,
+          action: "sync_google",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: result.action, error: errMsg },
+        });
+        await recordChannelState(supabase, {
+          unit,
+          channel,
+          status: shouldPublish ? result.action : "unpublished",
+          error: errMsg,
+        });
+      } catch (err) {
+        const msg = (err as Error).message;
+        await logActivity({
+          userEmail,
+          action: "sync_google",
+          targetType: "listing",
+          targetId: unit,
+          details: { trigger: "auto", action: "error", error: msg },
+        });
+        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
+      }
+      continue;
+    }
+
+    await recordSkipped(supabase, unit, channel, "Connecteur Kijiji non configuré");
   }
 }
 
@@ -323,6 +466,22 @@ export async function setHidden(unit: string, hidden: boolean): Promise<void> {
   revalidatePath(`/inventaire/${unit}`);
 }
 
+export async function retryPublicationJob(jobId: string): Promise<void> {
+  const { supabase, userEmail } = await requireUser();
+  const { data: job, error } = await supabase
+    .from("publication_job")
+    .select("unit, channel, action")
+    .eq("id", jobId)
+    .single();
+  if (error) throw new Error(`publication_job: ${error.message}`);
+  const channels = normalizeChannels([job.channel]);
+  const shouldPublish = job.action !== "unpublish";
+  await autoSyncChannels(supabase, job.unit, shouldPublish, userEmail, channels, channels);
+  revalidatePath("/dashboard/publication-jobs");
+  revalidatePath("/inventaire");
+  revalidatePath(`/inventaire/${job.unit}`);
+}
+
 export interface BulkPublishResult {
   published: number;
   skipped: number;
@@ -340,7 +499,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
   const [listingsRes, photosRes] = await Promise.all([
     supabase
       .from("listing")
-      .select("unit, price_cad, description_fr, is_published, hidden"),
+      .select("unit, price_cad, description_fr, is_published, hidden, channels"),
     supabase.from("vehicle_photo").select("unit, is_hero"),
   ]);
   if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
@@ -361,6 +520,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
   };
 
   const toPublish: string[] = [];
+  const channelsByUnit = new Map<string, Channel[]>();
   let skipped = 0;
 
   for (const l of listingsRes.data) {
@@ -379,6 +539,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
       continue;
     }
     toPublish.push(l.unit);
+    channelsByUnit.set(l.unit, normalizeChannels(l.channels));
   }
 
   if (toPublish.length > 0) {
@@ -400,6 +561,16 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
       units: toPublish,
     },
   });
+  for (const unit of toPublish) {
+    const channels = channelsByUnit.get(unit) ?? normalizeChannels(null);
+    await recordChannelState(supabase, {
+      unit,
+      channel: "native",
+      status: channels.includes("native") ? "published" : "skipped",
+      error: channels.includes("native") ? null : "Canal non sélectionné",
+    });
+    void autoSyncChannels(supabase, unit, true, userEmail, channels, channels);
+  }
   revalidatePath("/inventaire");
   return { published: toPublish.length, skipped, reasons };
 }

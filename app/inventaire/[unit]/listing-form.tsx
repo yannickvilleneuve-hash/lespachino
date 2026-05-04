@@ -28,9 +28,12 @@ const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
 
 const CHANNEL_LABELS: Record<Channel, string> = {
   native: "Site natif",
-  fb: "Facebook Marketplace",
+  wix: "Wix",
+  fb_marketplace: "Facebook Marketplace",
+  fb_page: "Page Facebook",
+  google_vla: "Google Vehicle Ads",
   lespac: "Lespac",
-  kijiji: "Kijiji",
+  kijiji: "Kijiji (à connecter)",
 };
 
 const PRICE_MARKUP = 1.25;
