@@ -8,6 +8,7 @@ const REASON_LABELS: Record<keyof BulkPublishResult["reasons"], string> = {
   description_missing: "manque description",
   no_photos: "aucune photo",
   no_hero: "pas de photo principale",
+  not_available: "non disponible SERTI",
 };
 
 export default function BulkPublishButton() {

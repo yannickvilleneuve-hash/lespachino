@@ -20,6 +20,18 @@ export async function syncOneToLespac(unit: string, shouldPublish: boolean): Pro
     if (shouldPublish) {
       const detail = await fetchVehicleByUnit(unit);
       if (!detail) return { unit, action: "error", error: "véhicule introuvable SERTI" };
+      if (!detail.available || detail.status !== "available") {
+        try {
+          await client.deactivateByVendorId(unit);
+          return { unit, action: "deactivated", error: "non disponible SERTI" };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/→ 404:/.test(msg)) {
+            return { unit, action: "deactivated", error: "non disponible SERTI" };
+          }
+          throw err;
+        }
+      }
       if (detail.photos.length === 0) return { unit, action: "error", error: "aucune photo" };
       const photosWithUrls = detail.photos.map((p) => ({
         ...p,

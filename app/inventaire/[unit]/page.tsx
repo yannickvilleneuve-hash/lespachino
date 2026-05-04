@@ -4,9 +4,14 @@ import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
 import { CHANNEL_LABELS, type Channel as LiveChannel } from "@/lib/listings/channel-state";
+import { isWixReady } from "@/lib/wix/config";
+import { isLespacReady } from "@/lib/lespac/config";
+import { isMetaPushReady } from "@/lib/meta/push";
+import { isPagePostReady } from "@/lib/meta/page";
+import { isGooglePushReady } from "@/lib/google/push";
 import AppHeader from "@/app/app-header";
 import { StatusBadge } from "../status-badges";
-import ListingForm from "./listing-form";
+import ListingForm, { type ChannelAvailability } from "./listing-form";
 import PhotoManager from "./photo-manager";
 import CaptureMobileButton from "./capture-mobile";
 import WalkaroundVideo from "./walkaround-video";
@@ -19,6 +24,28 @@ const currencyFmt = new Intl.NumberFormat("fr-CA", {
   maximumFractionDigits: 2,
 });
 
+function getChannelAvailability(): ChannelAvailability {
+  return {
+    native: { ready: true, reason: "Catalogue interne actif" },
+    wix: isWixReady()
+      ? { ready: true, reason: "Collection Wix connectée" }
+      : { ready: false, reason: "Connexion Wix manquante" },
+    fb_marketplace: isMetaPushReady()
+      ? { ready: true, reason: "Feed Facebook connecté" }
+      : { ready: false, reason: "Feed Facebook non configuré" },
+    fb_page: isPagePostReady()
+      ? { ready: true, reason: "Page Facebook connectée" }
+      : { ready: false, reason: "Page Facebook non configurée" },
+    google_vla: isGooglePushReady()
+      ? { ready: true, reason: "Google Merchant connecté" }
+      : { ready: false, reason: "Google Merchant non configuré" },
+    lespac: isLespacReady()
+      ? { ready: true, reason: "API Lespac connectée" }
+      : { ready: false, reason: "API Lespac non configurée" },
+    kijiji: { ready: false, reason: "Connecteur Kijiji à faire" },
+  };
+}
+
 export default async function EditPage({
   params,
 }: {
@@ -27,7 +54,14 @@ export default async function EditPage({
   const { unit } = await params;
   const detail = await fetchVehicleByUnit(decodeURIComponent(unit));
   if (!detail) notFound();
-  const photosWithUrls = await withSignedUrls(detail.photos, "thumb");
+  const [photosWithUrls, channelAvailability] = await Promise.all([
+    withSignedUrls(detail.photos, "thumb"),
+    Promise.resolve(getChannelAvailability()),
+  ]);
+  const enabledSelectedChannels = detail.channels.filter(
+    (c): c is Channel =>
+      (CHANNELS as readonly string[]).includes(c) && channelAvailability[c as Channel].ready,
+  );
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -103,7 +137,7 @@ export default async function EditPage({
             description={detail.description_fr}
             photoCount={detail.photo_count}
             hasHero={detail.has_hero}
-            channels={detail.channels.length}
+            channels={enabledSelectedChannels.length}
           />
         </aside>
 
@@ -118,6 +152,7 @@ export default async function EditPage({
               ),
             }}
             isPublished={detail.is_published}
+            channelAvailability={channelAvailability}
             vehicle={{
               year: detail.year,
               make: detail.make,
@@ -134,7 +169,7 @@ export default async function EditPage({
             </h2>
             <ChannelStateTable state={detail.channel_state} />
           </div>
-          <div className="mt-6 pt-6 border-t">
+          <div id="photos" className="mt-6 pt-6 border-t scroll-mt-24">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                 Photos
@@ -171,12 +206,18 @@ function PublicationChecklist({
   channels: number;
 }) {
   const items = [
-    { label: "Prix", ok: price > 0 },
-    { label: "Description", ok: description.trim().length > 0 },
-    { label: "Photos", ok: photoCount > 0 },
-    { label: "Photo principale", ok: hasHero },
-    { label: "Canaux", ok: channels > 0 },
+    { label: "Prix", ok: price > 0, href: "#prix", action: "Entrer" },
+    {
+      label: "Description",
+      ok: description.trim().length > 0,
+      href: "#description",
+      action: "Créer",
+    },
+    { label: "Photos", ok: photoCount > 0, href: "#photos", action: "Ajouter" },
+    { label: "Photo principale", ok: hasHero, href: "#photos", action: "Choisir" },
+    { label: "Canaux", ok: channels > 0, href: "#canaux", action: "Choisir" },
   ];
+  const ready = items.every((item) => item.ok);
   return (
     <div className="pt-3 border-t">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -194,9 +235,19 @@ function PublicationChecklist({
               {item.ok ? "✓" : "!"}
             </span>
             <span className={item.ok ? "text-gray-700" : "text-amber-800"}>{item.label}</span>
+            {!item.ok && (
+              <a href={item.href} className="ml-auto text-xs text-blue-700 hover:underline">
+                {item.action}
+              </a>
+            )}
           </li>
         ))}
       </ul>
+      {ready && (
+        <p className="mt-2 text-xs text-emerald-700">
+          Données complètes. Le bouton publier sauvegarde avant d&apos;envoyer.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -28,6 +29,7 @@ const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
   description_missing: "Il faut une description avant de publier.",
   no_photos: "Il faut au moins une photo avant de publier.",
   no_hero: "Il faut désigner une photo principale.",
+  not_available: "SERTI indique que ce véhicule n'est pas disponible à la vente.",
 };
 
 const CHANNEL_LABELS: Record<Channel, string> = {
@@ -40,7 +42,25 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   kijiji: "Kijiji (à connecter)",
 };
 
+const CHANNEL_TIMING: Record<Channel, string> = {
+  native: "instant",
+  wix: "instant",
+  fb_marketplace: "feed",
+  fb_page: "post",
+  google_vla: "≤ 24 h",
+  lespac: "instant",
+  kijiji: "non connecté",
+};
+
 const PRICE_MARKUP = 1.25;
+
+export type ChannelAvailability = Record<
+  Channel,
+  {
+    ready: boolean;
+    reason: string;
+  }
+>;
 
 export interface VehicleContext {
   year: number;
@@ -62,17 +82,21 @@ export default function ListingForm({
   defaults,
   isPublished,
   vehicle,
+  channelAvailability,
 }: {
   unit: string;
   defaults: ListingFormInput;
   isPublished: boolean;
   vehicle: VehicleContext;
+  channelAvailability: ChannelAvailability;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isDescPending, startDescTransition] = useTransition();
   const [publishMsg, setPublishMsg] = useState<string | null>(null);
   const [descMsg, setDescMsg] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmChannels, setConfirmChannels] = useState<Channel[]>([]);
   const [showOverwrite, setShowOverwrite] = useState(false);
   const [tplBody, setTplBody] = useState<BodyType>("none");
   const [tplLength, setTplLength] = useState<string>("");
@@ -90,8 +114,16 @@ export default function ListingForm({
     reset,
   } = useForm<ListingFormInput>({
     resolver: zodResolver(listingFormSchema),
-    defaultValues: defaults,
+    defaultValues: {
+      ...defaults,
+      channels: sanitizeChannels(defaults.channels),
+    },
   });
+
+  function sanitizeChannels(channels: readonly Channel[]): Channel[] {
+    const enabled = channels.filter((c) => channelAvailability[c]?.ready);
+    return enabled.length > 0 ? enabled : ["native"];
+  }
 
   function buildOpts(): SuggestOptions {
     const len = parseInt(tplLength, 10);
@@ -144,26 +176,51 @@ export default function ListingForm({
   const needsBrand = tplBody === "fourgon_montecharge" || tplBody === "fourgon_frio";
 
   async function onSubmit(values: ListingFormInput) {
-    await upsertListing(unit, values);
-    reset(values); // marque clean
+    const clean = { ...values, channels: sanitizeChannels(values.channels) };
+    await upsertListing(unit, clean);
+    reset(clean); // marque clean
   }
 
   function onTogglePublishClick() {
     setPublishMsg(null);
+    setConfirmChannels(sanitizeChannels(getValues("channels") ?? []));
     setShowConfirm(true);
   }
 
   function confirmTogglePublish() {
     setShowConfirm(false);
-    startTransition(async () => {
-      const result = await togglePublished(unit, !isPublished);
-      if (!result.ok) setPublishMsg(PUBLICATION_ERROR_MSG[result.error]);
-    });
+    void handleSubmit(
+      (values) => {
+        startTransition(async () => {
+          try {
+            const clean = { ...values, channels: sanitizeChannels(values.channels) };
+            await upsertListing(unit, clean);
+            reset(clean);
+            const result = await togglePublished(unit, !isPublished);
+            if (!result.ok) {
+              setPublishMsg(PUBLICATION_ERROR_MSG[result.error]);
+              return;
+            }
+            setPublishMsg(
+              isPublished
+                ? "Dépublication lancée. Les canaux connectés seront mis à jour."
+                : "Publication lancée. Les canaux connectés seront mis à jour.",
+            );
+            router.refresh();
+          } catch (err) {
+            setPublishMsg(err instanceof Error ? err.message : String(err));
+          }
+        });
+      },
+      () => {
+        setPublishMsg("Corrige les champs en rouge avant de publier.");
+      },
+    )();
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div>
+      <div id="prix" className="scroll-mt-24">
         <div className="flex items-center justify-between mb-1">
           <label className="block text-sm font-medium">Prix CAD</label>
           {vehicle.cost > 0 && (
@@ -193,7 +250,7 @@ export default function ListingForm({
         )}
       </div>
 
-      <div className="space-y-3">
+      <div id="description" className="space-y-3 scroll-mt-24">
         <label className="block text-sm font-medium">Description (FR)</label>
 
         <div className="bg-gray-50 border rounded p-3 space-y-3">
@@ -291,15 +348,39 @@ export default function ListingForm({
         )}
       </div>
 
-      <div>
+      <div id="canaux" className="scroll-mt-24">
         <label className="block text-sm font-medium mb-2">Où publier</label>
         <div className="grid grid-cols-2 gap-2">
-          {CHANNELS.map((c) => (
-            <label key={c} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" value={c} {...register("channels")} />
-              {CHANNEL_LABELS[c]}
-            </label>
-          ))}
+          {CHANNELS.map((c) => {
+            const available = channelAvailability[c];
+            const disabled = !available.ready;
+            return (
+              <label
+                key={c}
+                className={
+                  "flex items-start gap-2 text-sm rounded border px-2 py-2 " +
+                  (disabled
+                    ? "border-gray-200 bg-gray-50 text-gray-400"
+                    : "border-gray-200 bg-white text-gray-800")
+                }
+                title={available.reason}
+              >
+                <input
+                  type="checkbox"
+                  value={c}
+                  disabled={disabled}
+                  {...register("channels")}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block">{CHANNEL_LABELS[c]}</span>
+                  <span className={disabled ? "text-xs text-gray-400" : "text-xs text-gray-500"}>
+                    {available.reason}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
         </div>
         {errors.channels && (
           <p className="text-sm text-red-600 mt-1">{errors.channels.message}</p>
@@ -341,6 +422,8 @@ export default function ListingForm({
         <ConfirmPublishModal
           isPublished={isPublished}
           unit={unit}
+          selectedChannels={confirmChannels}
+          channelAvailability={channelAvailability}
           onCancel={() => setShowConfirm(false)}
           onConfirm={confirmTogglePublish}
         />
@@ -402,11 +485,15 @@ function ConfirmOverwriteModal({
 function ConfirmPublishModal({
   isPublished,
   unit,
+  selectedChannels,
+  channelAvailability,
   onCancel,
   onConfirm,
 }: {
   isPublished: boolean;
   unit: string;
+  selectedChannels: Channel[];
+  channelAvailability: ChannelAvailability;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -426,30 +513,21 @@ function ConfirmPublishModal({
         </h2>
         <p className="text-sm text-gray-600 mb-3">
           {isPublished
-            ? "Le véhicule sera retiré de tous les canaux ci-dessous."
-            : "Le véhicule sera publié sur tous les canaux ci-dessous."}
+            ? "Le formulaire sera sauvegardé, puis le véhicule sera retiré des canaux sélectionnés."
+            : "Le formulaire sera sauvegardé, puis le véhicule sera publié sur les canaux sélectionnés."}
         </p>
         <ul className="text-sm space-y-1.5 mb-5">
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
-            <span>Catalogue interne</span>
-            <span className="text-xs text-gray-500 ml-auto">instant</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            <span>Wix collection</span>
-            <span className="text-xs text-gray-500 ml-auto">instant</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-            <span>Meta Marketplace</span>
-            <span className="text-xs text-gray-500 ml-auto">{isPublished ? "≤ 1 h" : "≤ 1 h"}</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-            <span>Google Vehicle Ads</span>
-            <span className="text-xs text-gray-500 ml-auto">≤ 24 h</span>
-          </li>
+          {selectedChannels.map((channel) => (
+            <li key={channel} className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              <span>{CHANNEL_LABELS[channel]}</span>
+              <span className="text-xs text-gray-500 ml-auto">
+                {channelAvailability[channel].ready
+                  ? CHANNEL_TIMING[channel]
+                  : channelAvailability[channel].reason}
+              </span>
+            </li>
+          ))}
         </ul>
         <div className="flex justify-end gap-2">
           <button

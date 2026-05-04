@@ -28,13 +28,26 @@ export async function syncOneToWix(unit: string, shouldPublish: boolean): Promis
   try {
     if (shouldPublish) {
       const detail = await fetchVehicleByUnit(unit);
-      if (!detail || detail.photos.length === 0) {
+      if (!detail) {
         return {
           unit,
           action: "skipped",
-          error: !detail ? "introuvable SERTI" : "aucune photo",
+          error: "introuvable SERTI",
         };
       }
+      if (!detail.available || detail.status !== "available") {
+        try {
+          await removeItem(wixId);
+          return { unit, action: "removed", error: "non disponible SERTI" };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/→ 404:/.test(msg)) {
+            return { unit, action: "skipped", error: "non disponible SERTI" };
+          }
+          throw err;
+        }
+      }
+      if (detail.photos.length === 0) return { unit, action: "skipped", error: "aucune photo" };
       const photoUrls = detail.photos.map((p) => publicPhotoUrl(p.storage_path, "medium"));
       const heroPhoto = detail.photos.find((p) => p.is_hero) ?? detail.photos[0];
       const item: WixInventoryItem = {

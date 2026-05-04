@@ -193,6 +193,7 @@ const PUBLICATION_ERR_FR: Record<string, string> = {
   description_missing: "Description manquante",
   no_photos: "Aucune photo",
   no_hero: "Pas de photo principale",
+  not_available: "Non disponible SERTI",
 };
 
 const DEFAULT_DIR: Record<SortKey, SortDir> = {

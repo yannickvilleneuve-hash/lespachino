@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getVehicleByUnit } from "@/lib/serti/wgi";
+import { getVehicleByUnit, listInventoryVehicles } from "@/lib/serti/wgi";
 import { listingFormSchema, normalizeChannels, type Channel, type ListingFormInput } from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
 import { generateVariants, maskLikelyPlate, variantPath } from "@/lib/photos/resize";
@@ -142,13 +142,14 @@ export async function togglePublished(
   let selectedChannels: Channel[] = [];
 
   if (next) {
-    const [listingRes, photosRes] = await Promise.all([
+    const [listingRes, photosRes, vehicle] = await Promise.all([
       supabase
         .from("listing")
         .select("price_cad, description_fr, channels")
         .eq("unit", unit)
         .maybeSingle(),
       supabase.from("vehicle_photo").select("is_hero").eq("unit", unit),
+      getVehicleByUnit(unit),
     ]);
     if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
     if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
@@ -158,6 +159,7 @@ export async function togglePublished(
       price_cad: listingRes.data?.price_cad ?? 0,
       description_fr: listingRes.data?.description_fr ?? "",
       photos: photosRes.data,
+      available: Boolean(vehicle?.available && vehicle.status === "available"),
     });
     if (err) return { ok: false, error: err };
   } else {
@@ -537,14 +539,18 @@ export interface BulkPublishResult {
 export async function bulkPublishReady(): Promise<BulkPublishResult> {
   const { supabase, userId, userEmail } = await requireUser();
 
-  const [listingsRes, photosRes] = await Promise.all([
+  const [listingsRes, photosRes, vehicles] = await Promise.all([
     supabase
       .from("listing")
       .select("unit, price_cad, description_fr, is_published, hidden, channels"),
     supabase.from("vehicle_photo").select("unit, is_hero"),
+    listInventoryVehicles(),
   ]);
   if (listingsRes.error) throw new Error(`listings: ${listingsRes.error.message}`);
   if (photosRes.error) throw new Error(`photos: ${photosRes.error.message}`);
+  const availableUnits = new Set(
+    vehicles.filter((v) => v.available && v.status === "available").map((v) => v.unit),
+  );
 
   const photosByUnit = new Map<string, { is_hero: boolean }[]>();
   for (const p of photosRes.data) {
@@ -558,6 +564,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
     description_missing: 0,
     no_photos: 0,
     no_hero: 0,
+    not_available: 0,
   };
 
   const toPublish: string[] = [];
@@ -573,6 +580,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
       price_cad: l.price_cad,
       description_fr: l.description_fr,
       photos: photosByUnit.get(l.unit) ?? [],
+      available: availableUnits.has(l.unit),
     });
     if (err) {
       reasons[err] += 1;

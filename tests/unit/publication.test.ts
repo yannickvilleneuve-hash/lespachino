@@ -31,4 +31,8 @@ describe("validatePublication", () => {
       validatePublication({ ...valid, photos: [{ is_hero: false }, { is_hero: false }] }),
     ).toBe("no_hero");
   });
+
+  it("refuse véhicule non disponible à la vente", () => {
+    expect(validatePublication({ ...valid, available: false })).toBe("not_available");
+  });
 });
