@@ -60,6 +60,18 @@ describe("suggestDescription", () => {
     expect(out).toContain("largeur 102 po × hauteur 96 po");
   });
 
+  it("body fourgon_sec ajoute dry-box sans accessoire", () => {
+    const out = suggestDescription(baseV, {
+      body_type: "fourgon_sec",
+      body_length_ft: 20,
+    });
+    expect(out).toContain("Fourgon sec de 20 pieds");
+    expect(out).toContain("largeur 102 po × hauteur 96 po");
+    expect(out).not.toContain("Rampe de chargement");
+    expect(out).not.toContain("Monte-charge");
+    expect(out).not.toContain("réfrigération");
+  });
+
   it("body fourgon_montecharge respecte equipment_brand", () => {
     const out = suggestDescription(baseV, {
       body_type: "fourgon_montecharge",

@@ -7,6 +7,7 @@
 
 export type BodyType =
   | "none"
+  | "fourgon_sec"
   | "fourgon_rampe"
   | "fourgon_montecharge"
   | "fourgon_frio"
@@ -16,6 +17,7 @@ export type BodyType =
 
 export const BODY_TYPE_LABELS: Record<BodyType, string> = {
   none: "Aucune carrosserie",
+  fourgon_sec: "Fourgon sec / dry-box",
   fourgon_rampe: "Fourgon avec rampe",
   fourgon_montecharge: "Fourgon avec monte-charge",
   fourgon_frio: "Fourgon réfrigéré (Class 5)",
@@ -26,6 +28,7 @@ export const BODY_TYPE_LABELS: Record<BodyType, string> = {
 
 export const BODY_TYPES_ORDER: BodyType[] = [
   "none",
+  "fourgon_sec",
   "fourgon_rampe",
   "fourgon_montecharge",
   "fourgon_frio",
@@ -106,6 +109,10 @@ function lenStr(opts: SuggestOptions): string {
 
 function bodyFeatures(opts: SuggestOptions): string[] {
   switch (opts.body_type) {
+    case "fourgon_sec":
+      return [
+        `Fourgon sec de ${lenStr(opts)} (largeur 102 po × hauteur 96 po)`,
+      ];
     case "fourgon_rampe":
       return [
         `Fourgon de ${lenStr(opts)} (largeur 102 po × hauteur 96 po)`,
