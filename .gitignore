@@ -45,8 +45,10 @@ next-env.d.ts
 .superpowers/brainstorm/*/state/
 .superpowers/brainstorm/*/content/
 
+# supabase local CLI state
+supabase/.temp/
+
 # editors
 .vscode/
 .idea/
 *.swp
-
