@@ -8,16 +8,18 @@ export const CHANNELS = [
   "google_vla",
   "lespac",
   "kijiji",
+  "truckpaper",
+  "marketbook",
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const DEFAULT_CHANNELS: Channel[] = [
   "native",
   "wix",
-  "fb_marketplace",
   "fb_page",
-  "google_vla",
   "lespac",
+  "truckpaper",
+  "marketbook",
 ];
 
 const LEGACY_CHANNEL_MAP: Record<string, Channel | null> = {
@@ -28,6 +30,8 @@ const LEGACY_CHANNEL_MAP: Record<string, Channel | null> = {
   google_vla: "google_vla",
   lespac: "lespac",
   kijiji: "kijiji",
+  truckpaper: "truckpaper",
+  marketbook: "marketbook",
   wix: "wix",
 };
 

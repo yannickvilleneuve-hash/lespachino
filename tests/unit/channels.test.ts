@@ -28,6 +28,8 @@ describe("classifySource", () => {
     expect(classifySource("https://www.instagram.com/")).toBe("instagram");
     expect(classifySource("https://www.lespac.com/annonce/123")).toBe("lespac");
     expect(classifySource("https://www.kijiji.ca/v-vehicle/")).toBe("kijiji");
+    expect(classifySource("https://www.truckpaper.com/listing/123")).toBe("truckpaper");
+    expect(classifySource("https://www.marketbook.ca/listings/123")).toBe("marketbook");
     expect(classifySource("https://www.google.com/search?q=hino")).toBe("google");
     expect(classifySource("https://google.ca/")).toBe("google");
     expect(classifySource("https://www.camion-hino.ca/inventaire")).toBe("wix");

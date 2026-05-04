@@ -6,9 +6,7 @@ import { CHANNELS, type Channel } from "@/lib/listings/schema";
 import { CHANNEL_LABELS, type Channel as LiveChannel } from "@/lib/listings/channel-state";
 import { isWixReady } from "@/lib/wix/config";
 import { isLespacReady } from "@/lib/lespac/config";
-import { isMetaPushReady } from "@/lib/meta/push";
 import { isPagePostReady } from "@/lib/meta/page";
-import { isGooglePushReady } from "@/lib/google/push";
 import AppHeader from "@/app/app-header";
 import { StatusBadge } from "../status-badges";
 import ListingForm, { type ChannelAvailability } from "./listing-form";
@@ -30,19 +28,23 @@ function getChannelAvailability(): ChannelAvailability {
     wix: isWixReady()
       ? { ready: true, reason: "Collection Wix connectée" }
       : { ready: false, reason: "Connexion Wix manquante" },
-    fb_marketplace: isMetaPushReady()
-      ? { ready: true, reason: "Feed Facebook connecté" }
-      : { ready: false, reason: "Feed Facebook non configuré" },
+    fb_marketplace: {
+      ready: false,
+      reason: "Incompatible: Meta exige un prix numérique public",
+    },
     fb_page: isPagePostReady()
       ? { ready: true, reason: "Page Facebook connectée" }
       : { ready: false, reason: "Page Facebook non configurée" },
-    google_vla: isGooglePushReady()
-      ? { ready: true, reason: "Google Merchant connecté" }
-      : { ready: false, reason: "Google Merchant non configuré" },
+    google_vla: {
+      ready: false,
+      reason: "Incompatible: Google Vehicle Ads exige un prix numérique public",
+    },
     lespac: isLespacReady()
       ? { ready: true, reason: "API Lespac connectée" }
       : { ready: false, reason: "API Lespac non configurée" },
     kijiji: { ready: false, reason: "Connecteur Kijiji à faire" },
+    truckpaper: { ready: true, reason: "Feed CSV prêt" },
+    marketbook: { ready: true, reason: "Feed CSV prêt" },
   };
 }
 
@@ -255,6 +257,8 @@ const CHANNEL_ORDER: LiveChannel[] = [
   "google_vla",
   "lespac",
   "kijiji",
+  "truckpaper",
+  "marketbook",
 ];
 
 const PUBLISHED_STATUSES = new Set([
@@ -264,6 +268,7 @@ const PUBLISHED_STATUSES = new Set([
   "posted",
   "triggered",
   "queued",
+  "feed_ready",
   "ok",
   "claimed",
 ]);

@@ -42,6 +42,8 @@ const CHANNEL_ORDER: Channel[] = [
   "google_vla",
   "lespac",
   "kijiji",
+  "truckpaper",
+  "marketbook",
 ];
 
 const ICON_BY_CHANNEL: Record<Channel, string> = {
@@ -52,11 +54,23 @@ const ICON_BY_CHANNEL: Record<Channel, string> = {
   google_vla: "Gg",
   lespac: "Lp",
   kijiji: "Kj",
+  truckpaper: "TP",
+  marketbook: "MB",
 };
 
 function isPublishedStatus(status: string | null): boolean {
   if (!status) return false;
-  const ok = ["published", "saved", "upserted", "posted", "triggered", "queued", "ok", "claimed"];
+  const ok = [
+    "published",
+    "saved",
+    "upserted",
+    "posted",
+    "triggered",
+    "queued",
+    "feed_ready",
+    "ok",
+    "claimed",
+  ];
   return ok.includes(status);
 }
 

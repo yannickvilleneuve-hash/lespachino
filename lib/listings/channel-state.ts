@@ -8,6 +8,8 @@ export type Channel =
   | "google_vla"
   | "lespac"
   | "kijiji"
+  | "truckpaper"
+  | "marketbook"
   | "wix";
 
 export const CHANNEL_LABELS: Record<Channel, string> = {
@@ -17,6 +19,8 @@ export const CHANNEL_LABELS: Record<Channel, string> = {
   google_vla: "Google",
   lespac: "Lespac",
   kijiji: "Kijiji",
+  truckpaper: "TruckPaper",
+  marketbook: "MarketBook",
   wix: "Wix",
 };
 

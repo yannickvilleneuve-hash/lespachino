@@ -11,6 +11,14 @@ describe("normalizeChannels", () => {
   });
 
   it("retourne les defaults quand la liste est vide", () => {
+    expect(DEFAULT_CHANNELS).toEqual([
+      "native",
+      "wix",
+      "fb_page",
+      "lespac",
+      "truckpaper",
+      "marketbook",
+    ]);
     expect(normalizeChannels([])).toEqual(DEFAULT_CHANNELS);
     expect(normalizeChannels(null)).toEqual(DEFAULT_CHANNELS);
   });

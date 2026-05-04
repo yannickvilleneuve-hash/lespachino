@@ -12,10 +12,8 @@ import { isWixReady } from "@/lib/wix/config";
 import { syncOneToWix } from "@/lib/wix/sync";
 import { isLespacReady } from "@/lib/lespac/config";
 import { syncOneToLespac } from "@/lib/lespac/sync";
-import { triggerMetaFeedRefresh, isMetaPushReady } from "@/lib/meta/push";
 import { postVehicleToPage, isPagePostReady } from "@/lib/meta/page";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
-import { triggerGoogleFeedRefresh, isGooglePushReady } from "@/lib/google/push";
 import { recordChannelState } from "@/lib/listings/channel-state";
 import {
   createPublicationJob,
@@ -48,6 +46,8 @@ const EXTERNAL_CHANNELS: Channel[] = [
   "google_vla",
   "lespac",
   "kijiji",
+  "truckpaper",
+  "marketbook",
 ];
 
 async function requireUser() {
@@ -349,39 +349,12 @@ async function autoSyncChannels(
     }
 
     if (channel === "fb_marketplace") {
-      if (!isMetaPushReady()) {
-        await recordSkipped(supabase, unit, channel, "Variables Meta feed manquantes");
-        continue;
-      }
-      try {
-        const result = await runChannelJob(supabase, unit, channel, "refresh", userEmail, () =>
-          triggerMetaFeedRefresh(),
-        );
-        const errMsg = resultMessage(result);
-        await logActivity({
-          userEmail,
-          action: "sync_meta",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: result.action, error: errMsg },
-        });
-        await recordChannelState(supabase, {
-          unit,
-          channel,
-          status: shouldPublish ? result.action : "unpublished",
-          error: errMsg,
-        });
-      } catch (err) {
-        const msg = (err as Error).message;
-        await logActivity({
-          userEmail,
-          action: "sync_meta",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: "error", error: msg },
-        });
-        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
-      }
+      await recordSkipped(
+        supabase,
+        unit,
+        channel,
+        "Désactivé: Meta Marketplace exige un prix numérique public.",
+      );
       continue;
     }
 
@@ -450,39 +423,23 @@ async function autoSyncChannels(
     }
 
     if (channel === "google_vla") {
-      if (!isGooglePushReady()) {
-        await recordSkipped(supabase, unit, channel, "Variables Google Merchant manquantes");
-        continue;
-      }
-      try {
-        const result = await runChannelJob(supabase, unit, channel, "refresh", userEmail, () =>
-          triggerGoogleFeedRefresh(),
-        );
-        const errMsg = resultMessage(result);
-        await logActivity({
-          userEmail,
-          action: "sync_google",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: result.action, error: errMsg },
-        });
-        await recordChannelState(supabase, {
-          unit,
-          channel,
-          status: shouldPublish ? result.action : "unpublished",
-          error: errMsg,
-        });
-      } catch (err) {
-        const msg = (err as Error).message;
-        await logActivity({
-          userEmail,
-          action: "sync_google",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: "error", error: msg },
-        });
-        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
-      }
+      await recordSkipped(
+        supabase,
+        unit,
+        channel,
+        "Désactivé: Google Vehicle Ads exige un prix numérique public.",
+      );
+      continue;
+    }
+
+    if (channel === "truckpaper" || channel === "marketbook") {
+      const path = channel === "truckpaper" ? "/feed/truckpaper.csv" : "/feed/marketbook.csv";
+      await recordChannelState(supabase, {
+        unit,
+        channel,
+        status: shouldPublish ? "feed_ready" : "unpublished",
+        external_url: shouldPublish ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}${path}` : null,
+      });
       continue;
     }
 

@@ -109,10 +109,10 @@ describe("fetchInventory", () => {
     expect(rows[0].channels).toEqual([
       "native",
       "wix",
-      "fb_marketplace",
       "fb_page",
-      "google_vla",
       "lespac",
+      "truckpaper",
+      "marketbook",
     ]);
     expect(rows[0].channel_state).toEqual([]);
   });

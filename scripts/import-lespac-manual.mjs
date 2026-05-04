@@ -12,7 +12,7 @@ import * as jt400 from "node-jt400";
 
 const PHOTO_BUCKET = "vehicle-photos";
 const MAX_PHOTOS_PER_UNIT = 15;
-const DEFAULT_CHANNELS = ["native", "wix", "fb_marketplace", "fb_page", "google_vla", "lespac"];
+const DEFAULT_CHANNELS = ["native", "wix", "fb_page", "lespac", "truckpaper", "marketbook"];
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const args = process.argv.slice(2);

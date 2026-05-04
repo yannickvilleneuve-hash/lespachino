@@ -39,6 +39,8 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   google_vla: "Google Vehicle Ads",
   lespac: "Lespac",
   kijiji: "Kijiji (à connecter)",
+  truckpaper: "TruckPaper",
+  marketbook: "MarketBook",
 };
 
 const CHANNEL_TIMING: Record<Channel, string> = {
@@ -49,6 +51,8 @@ const CHANNEL_TIMING: Record<Channel, string> = {
   google_vla: "≤ 24 h",
   lespac: "instant",
   kijiji: "non connecté",
+  truckpaper: "feed CSV",
+  marketbook: "feed CSV",
 };
 
 export type ChannelAvailability = Record<

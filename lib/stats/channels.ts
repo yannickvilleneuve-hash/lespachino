@@ -8,6 +8,8 @@ export type Source =
   | "google"
   | "lespac"
   | "kijiji"
+  | "truckpaper"
+  | "marketbook"
   | "wix"
   | "autre";
 
@@ -19,6 +21,8 @@ export const SOURCE_LABELS: Record<Source, string> = {
   google: "Google",
   lespac: "Lespac",
   kijiji: "Kijiji",
+  truckpaper: "TruckPaper",
+  marketbook: "MarketBook",
   wix: "Site Wix",
   autre: "Autre",
 };
@@ -31,6 +35,8 @@ const SOURCE_ORDER: Source[] = [
   "google",
   "lespac",
   "kijiji",
+  "truckpaper",
+  "marketbook",
   "wix",
   "autre",
 ];
@@ -46,6 +52,8 @@ export function classifySource(referrer: string | null | undefined): Source {
   if (r.includes("instagram.com")) return "instagram";
   if (r.includes("lespac.com")) return "lespac";
   if (r.includes("kijiji.ca")) return "kijiji";
+  if (r.includes("truckpaper.com")) return "truckpaper";
+  if (r.includes("marketbook.ca")) return "marketbook";
   if (r.includes("google.")) return "google";
   if (
     r.includes("wix.com") ||

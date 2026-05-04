@@ -16,6 +16,8 @@ const SOURCE_COLORS: Record<Source, string> = {
   google: "bg-amber-500",
   lespac: "bg-orange-600",
   kijiji: "bg-red-700",
+  truckpaper: "bg-sky-700",
+  marketbook: "bg-cyan-700",
   wix: "bg-emerald-600",
   autre: "bg-gray-400",
 };
