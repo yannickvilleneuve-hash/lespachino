@@ -25,7 +25,6 @@ import {
 } from "@/lib/listings/description-templates";
 
 const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
-  price_missing: "Il faut un prix > 0 avant de publier.",
   description_missing: "Il faut une description avant de publier.",
   no_photos: "Il faut au moins une photo avant de publier.",
   no_hero: "Il faut désigner une photo principale.",

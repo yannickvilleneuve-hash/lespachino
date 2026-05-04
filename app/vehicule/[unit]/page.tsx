@@ -3,6 +3,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { getDealerConfig, telHref } from "@/lib/dealer/config";
 import { logVehicleView } from "@/lib/stats/views";
 import AppHeader from "@/app/app-header";
@@ -21,7 +22,7 @@ export async function generateMetadata({
   const { unit } = await params;
   const detail = await fetchPublicListingByUnit(decodeURIComponent(unit));
   if (!detail) return { title: "Véhicule introuvable" };
-  const title = `${detail.year} ${detail.make} ${detail.model} — ${currencyFmt.format(detail.price_cad)}`;
+  const title = `${detail.year} ${detail.make} ${detail.model}`;
   const description =
     detail.description_fr ||
     `${detail.make} ${detail.model} ${detail.year} disponible chez Centre du camion Hino.`;
@@ -45,12 +46,6 @@ export async function generateMetadata({
   };
 }
 
-const currencyFmt = new Intl.NumberFormat("fr-CA", {
-  style: "currency",
-  currency: "CAD",
-  maximumFractionDigits: 0,
-});
-
 export default async function Page({
   params,
 }: {
@@ -73,7 +68,7 @@ export default async function Page({
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <PixelViewContent unit={detail.unit} price={detail.price_cad} />
+      <PixelViewContent unit={detail.unit} />
       <AppHeader
         title={`${detail.year} ${detail.make} ${detail.model}`}
         logoHref="/"
@@ -102,7 +97,7 @@ export default async function Page({
             {detail.year} {detail.make} {detail.model}
           </h1>
           <p className="text-red-600 text-3xl font-bold font-mono mt-1">
-            {currencyFmt.format(detail.price_cad)}
+            {PUBLIC_PRICE_LABEL}
           </p>
 
           <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm bg-white border rounded p-4">

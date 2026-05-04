@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { bulkPublishReady, type BulkPublishResult } from "@/lib/listings/actions";
 
 const REASON_LABELS: Record<keyof BulkPublishResult["reasons"], string> = {
-  price_missing: "manque prix",
   description_missing: "manque description",
   no_photos: "aucune photo",
   no_hero: "pas de photo principale",

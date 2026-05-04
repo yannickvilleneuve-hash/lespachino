@@ -189,7 +189,6 @@ const COLUMNS: ColumnDef[] = [
 ];
 
 const PUBLICATION_ERR_FR: Record<string, string> = {
-  price_missing: "Prix manquant",
   description_missing: "Description manquante",
   no_photos: "Aucune photo",
   no_hero: "Pas de photo principale",

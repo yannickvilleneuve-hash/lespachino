@@ -1,4 +1,5 @@
 import { fetchPublicListings } from "@/lib/listings/public";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
         category: l.category,
         color: l.color,
         km: l.km,
-        price_cad: l.price_cad,
+        price_label: PUBLIC_PRICE_LABEL,
         description_fr: l.description_fr,
         detail_url: `${origin}/vehicule/${encodeURIComponent(l.unit)}`,
         hero_image_url: l.hero_url,

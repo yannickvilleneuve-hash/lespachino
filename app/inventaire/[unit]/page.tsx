@@ -133,7 +133,6 @@ export default async function EditPage({
             <p className="font-mono text-lg mt-1">{currencyFmt.format(detail.cost)}</p>
           </div>
           <PublicationChecklist
-            price={detail.price_cad}
             description={detail.description_fr}
             photoCount={detail.photo_count}
             hasHero={detail.has_hero}
@@ -193,20 +192,17 @@ export default async function EditPage({
 }
 
 function PublicationChecklist({
-  price,
   description,
   photoCount,
   hasHero,
   channels,
 }: {
-  price: number;
   description: string;
   photoCount: number;
   hasHero: boolean;
   channels: number;
 }) {
   const items = [
-    { label: "Prix", ok: price > 0, href: "#prix", action: "Entrer" },
     {
       label: "Description",
       ok: description.trim().length > 0,
@@ -267,6 +263,7 @@ const PUBLISHED_STATUSES = new Set([
   "saved",
   "upserted",
   "posted",
+  "triggered",
   "queued",
   "ok",
   "claimed",

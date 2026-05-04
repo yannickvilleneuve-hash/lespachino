@@ -1,3 +1,5 @@
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+
 /**
  * Meta Page Posts — publication automatique sur la Page FB Centre du Camion Hino.
  *
@@ -36,12 +38,7 @@ export interface VehiclePostPayload {
 
 function buildCaption(v: VehiclePostPayload): string {
   const title = `${v.year} ${v.make} ${v.model}`.trim();
-  const priceFmt = new Intl.NumberFormat("fr-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(v.price_cad);
-  const lines = [`🚛 ${title} — ${priceFmt}`, "", v.category];
+  const lines = [`${title} — ${PUBLIC_PRICE_LABEL}`, "", v.category];
   if (v.km > 0) lines.push(`${v.km.toLocaleString("fr-CA")} km`);
   if (v.description_fr) lines.push("", v.description_fr);
   lines.push("", "👉 " + v.detail_url);

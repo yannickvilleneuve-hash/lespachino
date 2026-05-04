@@ -2,16 +2,11 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { publicPhotoUrl } from "@/lib/listings/public";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { getDealerConfig } from "@/lib/dealer/config";
 import PrintButton from "./print-button";
 
 export const dynamic = "force-dynamic";
-
-const currencyFmt = new Intl.NumberFormat("fr-CA", {
-  style: "currency",
-  currency: "CAD",
-  maximumFractionDigits: 0,
-});
 
 export default async function PdfPage({
   params,
@@ -54,7 +49,7 @@ export default async function PdfPage({
                 {detail.year} {detail.make} {detail.model}
               </h1>
               <p className="mt-1 font-mono text-2xl font-bold text-red-600">
-                {detail.price_cad > 0 ? currencyFmt.format(detail.price_cad) : "Prix sur demande"}
+                {PUBLIC_PRICE_LABEL}
               </p>
             </div>
             <div className="text-right text-sm text-gray-700">

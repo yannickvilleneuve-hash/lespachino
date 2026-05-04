@@ -12,9 +12,9 @@ describe("validatePublication", () => {
     expect(validatePublication(valid)).toBeNull();
   });
 
-  it("refuse prix <= 0", () => {
-    expect(validatePublication({ ...valid, price_cad: 0 })).toBe("price_missing");
-    expect(validatePublication({ ...valid, price_cad: -1 })).toBe("price_missing");
+  it("accepte prix absent parce que le public voit appeler pour le prix", () => {
+    expect(validatePublication({ ...valid, price_cad: 0 })).toBeNull();
+    expect(validatePublication({ ...valid, price_cad: -1 })).toBeNull();
   });
 
   it("refuse description vide / blanche", () => {

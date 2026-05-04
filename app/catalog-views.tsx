@@ -4,22 +4,19 @@ import Link from "next/link";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import type { PublicListing } from "@/lib/listings/public";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { ViewModeSwitcher, useViewMode } from "./view-mode-switcher";
 import { VehiclePlaceholder } from "./vehicle-placeholder";
 
-const currencyFmt = new Intl.NumberFormat("fr-CA", {
-  style: "currency",
-  currency: "CAD",
-  maximumFractionDigits: 0,
-});
+export type CatalogListing = Omit<PublicListing, "price_cad">;
 
-type SortKey = "year" | "make" | "model" | "category" | "km" | "price_cad";
+type SortKey = "year" | "make" | "model" | "category" | "km";
 type SortDir = "asc" | "desc";
 
-export default function CatalogViews({ listings }: { listings: PublicListing[] }) {
+export default function CatalogViews({ listings }: { listings: CatalogListing[] }) {
   const [mode, setMode] = useViewMode("public", "list");
-  const [sortKey, setSortKey] = useState<SortKey>("price_cad");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortKey, setSortKey] = useState<SortKey>("year");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const sorted = useMemo(() => {
     const copy = [...listings];
@@ -39,7 +36,7 @@ export default function CatalogViews({ listings }: { listings: PublicListing[] }
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(k);
-      setSortDir(k === "year" || k === "price_cad" ? "asc" : "asc");
+      setSortDir(k === "year" ? "desc" : "asc");
     }
   }
 
@@ -67,7 +64,7 @@ export default function CatalogViews({ listings }: { listings: PublicListing[] }
   );
 }
 
-function Grille({ listings }: { listings: PublicListing[] }) {
+function Grille({ listings }: { listings: CatalogListing[] }) {
   return (
     <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {listings.map((l) => (
@@ -106,7 +103,7 @@ function Grille({ listings }: { listings: PublicListing[] }) {
               </div>
               <div className="flex items-baseline justify-between mt-2">
                 <span className="text-lg font-bold text-red-600 font-mono">
-                  {currencyFmt.format(l.price_cad)}
+                  {PUBLIC_PRICE_LABEL}
                 </span>
                 <span className="text-[10px] text-gray-400 font-mono">{l.unit}</span>
               </div>
@@ -118,7 +115,7 @@ function Grille({ listings }: { listings: PublicListing[] }) {
   );
 }
 
-function Liste({ listings }: { listings: PublicListing[] }) {
+function Liste({ listings }: { listings: CatalogListing[] }) {
   return (
     <ul className="divide-y bg-white border rounded shadow-sm">
       {listings.map((l) => (
@@ -161,7 +158,7 @@ function Liste({ listings }: { listings: PublicListing[] }) {
             </div>
             <div className="text-right pr-2">
               <div className="text-lg font-bold text-red-600 font-mono">
-                {currencyFmt.format(l.price_cad)}
+                {PUBLIC_PRICE_LABEL}
               </div>
               <div className="text-[10px] text-gray-400 font-mono">{l.unit}</div>
             </div>
@@ -178,7 +175,7 @@ function Tableau({
   sortDir,
   onSort,
 }: {
-  listings: PublicListing[];
+  listings: CatalogListing[];
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (k: SortKey) => void;
@@ -189,7 +186,6 @@ function Tableau({
     { key: "model", label: "Modèle" },
     { key: "category", label: "Catégorie" },
     { key: "km", label: "Km", align: "right" },
-    { key: "price_cad", label: "Prix", align: "right" },
   ];
   return (
     <div className="overflow-x-auto bg-white border rounded shadow-sm">
@@ -236,9 +232,6 @@ function Tableau({
               <td className="px-3 py-1.5 text-xs text-gray-600">{l.category}</td>
               <td className="px-3 py-1.5 text-right font-mono">
                 {l.km > 0 ? l.km.toLocaleString("fr-CA") : "—"}
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono font-bold text-red-600">
-                {currencyFmt.format(l.price_cad)}
               </td>
             </tr>
           ))}

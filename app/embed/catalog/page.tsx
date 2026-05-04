@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { Metadata } from "next";
 import { fetchPublicListings } from "@/lib/listings/public";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +11,6 @@ export const metadata: Metadata = {
   title: "Inventaire — Centre du camion Hino",
   robots: { index: false },
 };
-
-const currencyFmt = new Intl.NumberFormat("fr-CA", {
-  style: "currency",
-  currency: "CAD",
-  maximumFractionDigits: 0,
-});
 
 export default async function EmbedCatalog() {
   const listings = await fetchPublicListings();
@@ -83,7 +78,7 @@ export default async function EmbedCatalog() {
                   </div>
                   <div className="text-right pl-2 flex-shrink-0">
                     <div className="text-base font-bold text-red-600 font-mono">
-                      {currencyFmt.format(l.price_cad)}
+                      {PUBLIC_PRICE_LABEL}
                     </div>
                     <div className="text-[10px] text-gray-400 font-mono">{l.unit}</div>
                   </div>

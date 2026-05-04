@@ -560,7 +560,6 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
   }
 
   const reasons: Record<PublicationError, number> = {
-    price_missing: 0,
     description_missing: 0,
     no_photos: 0,
     no_hero: 0,

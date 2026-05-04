@@ -1,4 +1,5 @@
 import { fetchPublicListings, type PublicListing } from "@/lib/listings/public";
+import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { getDealerConfig } from "@/lib/dealer/config";
 
 export const dynamic = "force-dynamic";
@@ -93,8 +94,8 @@ export async function GET(request: Request) {
       l.year > 0 ? String(l.year) : "",
       l.km > 0 ? String(l.km) : "0",
       "KM",
-      String(Math.round(l.price_cad * 100) / 100),
-      "CAD",
+      PUBLIC_PRICE_LABEL,
+      "",
       state,
       condition,
       "in stock",
