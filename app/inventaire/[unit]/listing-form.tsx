@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type UseFormRegister } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CHANNELS,
@@ -58,6 +58,18 @@ const CHANNEL_TIMING: Record<Channel, string> = {
 const PRIMARY_CHANNELS: Channel[] = ["native", "wix", "lespac", "fb_page"];
 const FEED_CHANNELS: Channel[] = ["truckpaper", "marketbook"];
 
+const SYNC_OK_STATUSES = new Set([
+  "published",
+  "saved",
+  "upserted",
+  "posted",
+  "triggered",
+  "queued",
+  "feed_ready",
+  "ok",
+  "claimed",
+]);
+
 export type ChannelAvailability = Record<
   Channel,
   {
@@ -75,18 +87,35 @@ export interface VehicleContext {
   category: string;
 }
 
+export interface PublicationReadiness {
+  hasDescription: boolean;
+  photoCount: number;
+  hasHero: boolean;
+  available: boolean;
+}
+
+export interface ChannelStateSnapshot {
+  channel: string;
+  last_status: string | null;
+  last_error: string | null;
+}
+
 export default function ListingForm({
   unit,
   defaults,
   isPublished,
   vehicle,
   channelAvailability,
+  readiness,
+  channelState,
 }: {
   unit: string;
   defaults: ListingFormInput;
   isPublished: boolean;
   vehicle: VehicleContext;
   channelAvailability: ChannelAvailability;
+  readiness: PublicationReadiness;
+  channelState: ChannelStateSnapshot[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -178,6 +207,9 @@ export default function ListingForm({
   const readyPrimaryChannels = PRIMARY_CHANNELS.filter((c) => channelAvailability[c]?.ready);
   const readyFeedChannels = FEED_CHANNELS.filter((c) => channelAvailability[c]?.ready);
   const unavailableChannels = CHANNELS.filter((c) => !channelAvailability[c]?.ready);
+  const selectedReadyChannels = CHANNELS.filter(
+    (c) => selectedChannels.has(c) && channelAvailability[c]?.ready,
+  );
 
   async function onSubmit(values: ListingFormInput) {
     const clean = { ...values, channels: sanitizeChannels(values.channels) };
@@ -336,11 +368,19 @@ export default function ListingForm({
       </div>
 
       <div id="canaux" className="scroll-mt-24 space-y-3">
+        <PublicationSteps
+          isPublished={isPublished}
+          isDirty={isDirty}
+          readiness={readiness}
+          selectedChannels={selectedReadyChannels}
+          channelState={channelState}
+        />
+
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <label className="block text-sm font-medium">Destinations sélectionnées</label>
+            <label className="block text-sm font-medium">Étape 2 · Destinations</label>
             <p className="text-xs text-gray-500 mt-0.5">
-              Ces choix seront utilisés au prochain clic sur Publier l&apos;annonce.
+              Coche seulement les endroits où cette annonce doit aller.
             </p>
           </div>
           <span
@@ -462,6 +502,179 @@ export default function ListingForm({
   );
 }
 
+function PublicationSteps({
+  isPublished,
+  isDirty,
+  readiness,
+  selectedChannels,
+  channelState,
+}: {
+  isPublished: boolean;
+  isDirty: boolean;
+  readiness: PublicationReadiness;
+  selectedChannels: Channel[];
+  channelState: ChannelStateSnapshot[];
+}) {
+  const missing = [
+    !readiness.available ? "SERTI disponible" : null,
+    !readiness.hasDescription ? "description" : null,
+    readiness.photoCount === 0 ? "photos" : null,
+    !readiness.hasHero ? "photo principale" : null,
+  ].filter((v): v is string => Boolean(v));
+  const readyToPublish = missing.length === 0 && selectedChannels.length > 0;
+  const sync = summarizeSync(isPublished, selectedChannels, channelState);
+
+  return (
+    <div className="border rounded bg-gray-50">
+      <div className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x">
+        <PublicationStep
+          number={1}
+          label="Fiche"
+          status={missing.length === 0 ? "Prête" : "À compléter"}
+          detail={missing.length === 0 ? "Description et photos OK" : missing.join(", ")}
+          tone={missing.length === 0 ? "done" : "active"}
+        />
+        <PublicationStep
+          number={2}
+          label="Destinations"
+          status={
+            selectedChannels.length > 0
+              ? `${selectedChannels.length} sélectionnée${selectedChannels.length > 1 ? "s" : ""}`
+              : "Aucune"
+          }
+          detail={
+            selectedChannels.length > 0
+              ? selectedChannels.map((c) => CHANNEL_LABELS[c]).join(", ")
+              : "Choisir au moins une destination"
+          }
+          tone={selectedChannels.length > 0 ? "done" : "active"}
+        />
+        <PublicationStep
+          number={3}
+          label="Publication"
+          status={
+            isPublished
+              ? isDirty
+                ? "À enregistrer"
+                : "Publiée"
+              : readyToPublish
+                ? "Prête"
+                : "Brouillon"
+          }
+          detail={
+            isPublished
+              ? isDirty
+                ? "Sauvegarder pour appliquer les changements"
+                : "Annonce active"
+              : readyToPublish
+                ? "Le bouton Publier peut être utilisé"
+                : "Compléter les étapes précédentes"
+          }
+          tone={isPublished ? (isDirty ? "active" : "done") : readyToPublish ? "active" : "waiting"}
+        />
+        <PublicationStep
+          number={4}
+          label="Plateformes"
+          status={sync.status}
+          detail={sync.detail}
+          tone={sync.tone}
+        />
+      </div>
+    </div>
+  );
+}
+
+function summarizeSync(
+  isPublished: boolean,
+  selectedChannels: Channel[],
+  channelState: ChannelStateSnapshot[],
+): { status: string; detail: string; tone: StepTone } {
+  if (selectedChannels.length === 0) {
+    return { status: "En attente", detail: "Aucune destination", tone: "waiting" };
+  }
+  if (!isPublished) {
+    return { status: "En attente", detail: "Pas encore publié", tone: "waiting" };
+  }
+
+  const byChannel = new Map(channelState.map((s) => [s.channel, s]));
+  let ok = 0;
+  let pending = 0;
+  let error = 0;
+  for (const channel of selectedChannels) {
+    const state = byChannel.get(channel);
+    const status = state?.last_status ?? null;
+    if (state?.last_error || status === "error") {
+      error += 1;
+    } else if (status && SYNC_OK_STATUSES.has(status)) {
+      ok += 1;
+    } else {
+      pending += 1;
+    }
+  }
+
+  if (error > 0) {
+    return {
+      status: `${ok} OK, ${error} à vérifier`,
+      detail: pending > 0 ? `${pending} en attente` : "Voir le tableau plus bas",
+      tone: "blocked",
+    };
+  }
+  if (pending > 0) {
+    return {
+      status: `${ok} OK, ${pending} en attente`,
+      detail: "Certaines plateformes n'ont pas confirmé",
+      tone: "active",
+    };
+  }
+  return {
+    status: `${ok} OK`,
+    detail: "Toutes les destinations sélectionnées sont à jour",
+    tone: "done",
+  };
+}
+
+type StepTone = "done" | "active" | "waiting" | "blocked";
+
+function PublicationStep({
+  number,
+  label,
+  status,
+  detail,
+  tone,
+}: {
+  number: number;
+  label: string;
+  status: string;
+  detail: string;
+  tone: StepTone;
+}) {
+  const toneClass: Record<StepTone, string> = {
+    done: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    active: "bg-blue-100 text-blue-800 border-blue-200",
+    waiting: "bg-gray-100 text-gray-700 border-gray-200",
+    blocked: "bg-red-100 text-red-800 border-red-200",
+  };
+  return (
+    <div className="p-3 min-w-0">
+      <div className="flex items-center gap-2">
+        <span
+          className={
+            "inline-flex w-6 h-6 items-center justify-center rounded-full border text-xs font-semibold " +
+            toneClass[tone]
+          }
+        >
+          {number}
+        </span>
+        <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
+          {label}
+        </span>
+      </div>
+      <div className="mt-2 text-sm font-semibold text-gray-900 truncate">{status}</div>
+      <div className="mt-0.5 text-xs text-gray-500 line-clamp-2">{detail}</div>
+    </div>
+  );
+}
+
 function ChannelPickerGroup({
   title,
   channels,
@@ -473,7 +686,7 @@ function ChannelPickerGroup({
   channels: Channel[];
   selectedChannels: Set<Channel>;
   channelAvailability: ChannelAvailability;
-  register: ReturnType<typeof useForm<ListingFormInput>>["register"];
+  register: UseFormRegister<ListingFormInput>;
 }) {
   return (
     <div>

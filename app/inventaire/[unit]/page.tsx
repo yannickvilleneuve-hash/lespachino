@@ -154,6 +154,13 @@ export default async function EditPage({
             }}
             isPublished={detail.is_published}
             channelAvailability={channelAvailability}
+            readiness={{
+              hasDescription: detail.description_fr.trim().length > 0,
+              photoCount: detail.photo_count,
+              hasHero: detail.has_hero,
+              available: Boolean(detail.available && detail.status === "available"),
+            }}
+            channelState={detail.channel_state}
             vehicle={{
               year: detail.year,
               make: detail.make,
@@ -273,6 +280,19 @@ const PUBLISHED_STATUSES = new Set([
   "claimed",
 ]);
 
+function readableChannelStatus(status: string | null, lastError: string | null): string {
+  if (lastError || status === "error") return "À vérifier";
+  if (!status) return "Jamais synchronisé";
+  if (PUBLISHED_STATUSES.has(status)) {
+    if (status === "feed_ready") return "Prêt dans le feed";
+    if (status === "queued" || status === "triggered") return "En cours";
+    return "Actif";
+  }
+  if (status === "skipped") return "Ignoré";
+  if (status === "unpublished" || status === "removed") return "Non publié";
+  return status;
+}
+
 function ChannelStateTable({
   state,
 }: {
@@ -291,7 +311,7 @@ function ChannelStateTable({
       <table className="w-full text-sm border-collapse">
         <thead className="text-xs uppercase tracking-wide text-gray-500">
           <tr>
-            <th className="text-left py-1.5 pr-3">Canal</th>
+            <th className="text-left py-1.5 pr-3">Plateforme</th>
             <th className="text-left py-1.5 pr-3">État</th>
             <th className="text-left py-1.5 pr-3">Dernière sync</th>
             <th className="text-left py-1.5 pr-3">Lien externe</th>
@@ -303,6 +323,7 @@ function ChannelStateTable({
             const status = s?.last_status ?? null;
             const error = Boolean(s?.last_error) || status === "error";
             const published = status ? PUBLISHED_STATUSES.has(status) : false;
+            const label = readableChannelStatus(status, s?.last_error ?? null);
             const dot = error
               ? "bg-red-500"
               : published
@@ -316,7 +337,7 @@ function ChannelStateTable({
                 <td className="py-1.5 pr-3">
                   <span className="inline-flex items-center gap-2">
                     <span className={"inline-block w-2 h-2 rounded-full " + dot} />
-                    <span className="text-gray-700">{status ?? "—"}</span>
+                    <span className="text-gray-700">{label}</span>
                   </span>
                   {s?.last_error && (
                     <div className="text-[11px] text-red-700 mt-0.5 max-w-md truncate" title={s.last_error}>
