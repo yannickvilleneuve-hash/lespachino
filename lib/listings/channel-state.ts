@@ -13,15 +13,15 @@ export type Channel =
   | "wix";
 
 export const CHANNEL_LABELS: Record<Channel, string> = {
-  native: "Site",
-  fb_marketplace: "FB Marketplace",
-  fb_page: "Page FB",
-  google_vla: "Google",
-  lespac: "Lespac",
+  native: "Fiche véhicule",
+  fb_marketplace: "Facebook Marketplace",
+  fb_page: "Page Facebook",
+  google_vla: "Google Vehicle Ads",
+  lespac: "LesPAC",
   kijiji: "Kijiji",
   truckpaper: "TruckPaper",
   marketbook: "MarketBook",
-  wix: "Wix",
+  wix: "Page Inventaire (Wix)",
 };
 
 export interface ChannelStateUpdate {

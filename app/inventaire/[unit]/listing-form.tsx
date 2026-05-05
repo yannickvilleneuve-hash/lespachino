@@ -32,43 +32,39 @@ const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
 };
 
 const CHANNEL_LABELS: Record<Channel, string> = {
-  native: "Site Hino",
-  wix: "Wix",
+  native: "Fiche véhicule",
+  wix: "Page Inventaire (Wix)",
   fb_marketplace: "Facebook Marketplace",
   fb_page: "Page Facebook",
   google_vla: "Google Vehicle Ads",
-  lespac: "Lespac",
+  lespac: "LesPAC",
   kijiji: "Kijiji (à connecter)",
   truckpaper: "TruckPaper",
   marketbook: "MarketBook",
 };
 
-const CHANNEL_TIMING: Record<Channel, string> = {
-  native: "instant",
-  wix: "instant",
-  fb_marketplace: "feed",
-  fb_page: "post",
-  google_vla: "≤ 24 h",
-  lespac: "instant",
-  kijiji: "non connecté",
-  truckpaper: "feed CSV",
-  marketbook: "feed CSV",
+const CHANNEL_DESCRIPTIONS: Record<Channel, string> = {
+  native: "Lien public de la fiche détaillée",
+  wix: "Bloc Inventaire visible sur le site Hino",
+  fb_marketplace: "Catalogue Meta Marketplace",
+  fb_page: "Publication native sur la page Facebook",
+  google_vla: "Feed Google Vehicle Ads",
+  lespac: "Annonce publiée via l'API LesPAC",
+  kijiji: "Connecteur Kijiji",
+  truckpaper: "Feed CSV TruckPaper",
+  marketbook: "Feed CSV MarketBook",
 };
 
-const PRIMARY_CHANNELS: Channel[] = ["native", "wix", "lespac", "fb_page"];
-const FEED_CHANNELS: Channel[] = ["truckpaper", "marketbook"];
-
-const SYNC_OK_STATUSES = new Set([
+const SYNC_DONE_STATUSES = new Set([
   "published",
   "saved",
   "upserted",
   "posted",
-  "triggered",
-  "queued",
   "feed_ready",
   "ok",
   "claimed",
 ]);
+const SYNC_ACTIVE_STATUSES = new Set(["triggered", "queued"]);
 
 export type ChannelAvailability = Record<
   Channel,
@@ -97,6 +93,9 @@ export interface PublicationReadiness {
 export interface ChannelStateSnapshot {
   channel: string;
   last_status: string | null;
+  last_synced_at?: string | null;
+  external_id?: string | null;
+  external_url?: string | null;
   last_error: string | null;
 }
 
@@ -204,9 +203,6 @@ export default function ListingForm({
   const needsBrand = tplBody === "fourgon_montecharge" || tplBody === "fourgon_frio";
   const watchedChannels = useWatch({ control, name: "channels" });
   const selectedChannels = new Set(watchedChannels ?? []);
-  const readyPrimaryChannels = PRIMARY_CHANNELS.filter((c) => channelAvailability[c]?.ready);
-  const readyFeedChannels = FEED_CHANNELS.filter((c) => channelAvailability[c]?.ready);
-  const unavailableChannels = CHANNELS.filter((c) => !channelAvailability[c]?.ready);
   const selectedReadyChannels = CHANNELS.filter(
     (c) => selectedChannels.has(c) && channelAvailability[c]?.ready,
   );
@@ -378,9 +374,9 @@ export default function ListingForm({
 
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <label className="block text-sm font-medium">Étape 2 · Destinations</label>
+            <label className="block text-sm font-medium">Plateformes et état réel</label>
             <p className="text-xs text-gray-500 mt-0.5">
-              Coche seulement les endroits où cette annonce doit aller.
+              Choisir où publier et voir ce qui est fait ou à faire.
             </p>
           </div>
           <span
@@ -395,54 +391,13 @@ export default function ListingForm({
           </span>
         </div>
 
-        {readyPrimaryChannels.length > 0 && (
-          <ChannelPickerGroup
-            title="Sites et annonces"
-            channels={readyPrimaryChannels}
-            selectedChannels={selectedChannels}
-            channelAvailability={channelAvailability}
-            register={register}
-          />
-        )}
-        {readyFeedChannels.length > 0 && (
-          <ChannelPickerGroup
-            title="Feeds partenaires"
-            channels={readyFeedChannels}
-            selectedChannels={selectedChannels}
-            channelAvailability={channelAvailability}
-            register={register}
-          />
-        )}
-        {unavailableChannels.length > 0 && (
-          <div>
-            <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1.5">
-              Non disponibles
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {unavailableChannels.map((c) => (
-                <label
-                  key={c}
-                  className="flex items-start gap-2 text-sm rounded border border-gray-200 bg-gray-50 px-2 py-2 text-gray-400"
-                  title={channelAvailability[c].reason}
-                >
-                  <input
-                    type="checkbox"
-                    value={c}
-                    disabled
-                    {...register("channels")}
-                    className="mt-0.5"
-                  />
-                  <span className="min-w-0">
-                    <span className="block font-medium">{CHANNEL_LABELS[c]}</span>
-                    <span className="block text-xs text-gray-400">
-                      {channelAvailability[c].reason}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
+        <PlatformPublicationList
+          isPublished={isPublished}
+          selectedChannels={selectedChannels}
+          channelAvailability={channelAvailability}
+          channelState={channelState}
+          register={register}
+        />
         {errors.channels && (
           <p className="text-sm text-red-600 mt-1">{errors.channels.message}</p>
         )}
@@ -536,7 +491,7 @@ function PublicationSteps({
         />
         <PublicationStep
           number={2}
-          label="Destinations"
+          label="Plateformes"
           status={
             selectedChannels.length > 0
               ? `${selectedChannels.length} sélectionnée${selectedChannels.length > 1 ? "s" : ""}`
@@ -545,7 +500,7 @@ function PublicationSteps({
           detail={
             selectedChannels.length > 0
               ? selectedChannels.map((c) => CHANNEL_LABELS[c]).join(", ")
-              : "Choisir au moins une destination"
+              : "Choisir au moins une plateforme"
           }
           tone={selectedChannels.length > 0 ? "done" : "active"}
         />
@@ -574,7 +529,7 @@ function PublicationSteps({
         />
         <PublicationStep
           number={4}
-          label="Plateformes"
+          label="Résultat"
           status={sync.status}
           detail={sync.detail}
           tone={sync.tone}
@@ -590,14 +545,15 @@ function summarizeSync(
   channelState: ChannelStateSnapshot[],
 ): { status: string; detail: string; tone: StepTone } {
   if (selectedChannels.length === 0) {
-    return { status: "En attente", detail: "Aucune destination", tone: "waiting" };
+    return { status: "En attente", detail: "Aucune plateforme", tone: "waiting" };
   }
   if (!isPublished) {
     return { status: "En attente", detail: "Pas encore publié", tone: "waiting" };
   }
 
   const byChannel = new Map(channelState.map((s) => [s.channel, s]));
-  let ok = 0;
+  let done = 0;
+  let running = 0;
   let pending = 0;
   let error = 0;
   for (const channel of selectedChannels) {
@@ -605,30 +561,38 @@ function summarizeSync(
     const status = state?.last_status ?? null;
     if (state?.last_error || status === "error") {
       error += 1;
-    } else if (status && SYNC_OK_STATUSES.has(status)) {
-      ok += 1;
+    } else if (status && SYNC_DONE_STATUSES.has(status)) {
+      done += 1;
+    } else if (status && SYNC_ACTIVE_STATUSES.has(status)) {
+      running += 1;
     } else {
       pending += 1;
     }
   }
+  const parts = [
+    done > 0 ? `${done} fait${done > 1 ? "s" : ""}` : null,
+    running > 0 ? `${running} en cours` : null,
+    pending > 0 ? `${pending} en attente` : null,
+    error > 0 ? `${error} à vérifier` : null,
+  ].filter((part): part is string => Boolean(part));
 
   if (error > 0) {
     return {
-      status: `${ok} OK, ${error} à vérifier`,
-      detail: pending > 0 ? `${pending} en attente` : "Voir le tableau plus bas",
+      status: parts.join(", "),
+      detail: "Voir les plateformes ci-dessous",
       tone: "blocked",
     };
   }
-  if (pending > 0) {
+  if (pending > 0 || running > 0) {
     return {
-      status: `${ok} OK, ${pending} en attente`,
+      status: parts.join(", "),
       detail: "Certaines plateformes n'ont pas confirmé",
       tone: "active",
     };
   }
   return {
-    status: `${ok} OK`,
-    detail: "Toutes les destinations sélectionnées sont à jour",
+    status: `${done} fait${done > 1 ? "s" : ""}`,
+    detail: "Toutes les plateformes sélectionnées sont à jour",
     tone: "done",
   };
 }
@@ -675,60 +639,218 @@ function PublicationStep({
   );
 }
 
-function ChannelPickerGroup({
-  title,
-  channels,
+type PlatformTone = "done" | "active" | "waiting" | "blocked" | "disabled";
+
+function PlatformPublicationList({
+  isPublished,
   selectedChannels,
   channelAvailability,
+  channelState,
   register,
 }: {
-  title: string;
-  channels: Channel[];
+  isPublished: boolean;
   selectedChannels: Set<Channel>;
   channelAvailability: ChannelAvailability;
+  channelState: ChannelStateSnapshot[];
   register: UseFormRegister<ListingFormInput>;
 }) {
+  const byChannel = new Map(channelState.map((s) => [s.channel, s]));
+  const rows = CHANNELS.map((channel) => {
+    const selected = selectedChannels.has(channel);
+    const available = channelAvailability[channel];
+    return {
+      channel,
+      selected,
+      available,
+      state: byChannel.get(channel),
+      status: platformStatus({
+        available,
+        isPublished,
+        selected,
+        state: byChannel.get(channel),
+      }),
+    };
+  });
+  const selectedCount = rows.filter((row) => row.selected && row.available.ready).length;
+  const doneCount = rows.filter((row) => row.status.tone === "done").length;
+  const activeCount = rows.filter((row) => row.status.tone === "active").length;
+  const blockedCount = rows.filter((row) => row.status.tone === "blocked").length;
+
   return (
-    <div>
-      <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1.5">
-        {title}
+    <div className="border rounded overflow-hidden bg-white">
+      <div className="px-3 py-2 bg-gray-50 border-b">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-wide text-gray-500 font-semibold">
+          <span>Plateforme</span>
+          <span>{selectedCount} sélectionnée{selectedCount > 1 ? "s" : ""}</span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <StatusPill label={`${doneCount} fait${doneCount > 1 ? "s" : ""}`} tone="done" />
+          <StatusPill label={`${activeCount} à faire`} tone="active" />
+          {blockedCount > 0 && (
+            <StatusPill label={`${blockedCount} à vérifier`} tone="blocked" />
+          )}
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        {channels.map((c) => {
-          const selected = selectedChannels.has(c);
+      <div className="divide-y">
+        {rows.map(({ channel, selected, available, state, status }) => {
           return (
             <label
-              key={c}
+              key={channel}
               className={
-                "flex items-start gap-2 text-sm rounded border px-2 py-2 " +
-                (selected
-                  ? "border-blue-300 bg-blue-50 text-gray-900"
-                  : "border-gray-200 bg-white text-gray-800")
+                "grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 px-3 py-3 text-sm " +
+                (status.tone === "blocked"
+                  ? "bg-red-50/70"
+                  : selected && available.ready
+                    ? "bg-blue-50/60"
+                    : "bg-white")
               }
-              title={channelAvailability[c].reason}
+              title={status.detail}
             >
               <input
                 type="checkbox"
-                value={c}
+                value={channel}
+                disabled={!available.ready}
                 {...register("channels")}
-                className="mt-0.5"
+                className="mt-1"
               />
               <span className="min-w-0">
-                <span className="flex items-center gap-2">
-                  <span className="font-medium">{CHANNEL_LABELS[c]}</span>
-                  <span className="text-[10px] uppercase tracking-wide text-gray-400">
-                    {CHANNEL_TIMING[c]}
-                  </span>
+                <span
+                  className={
+                    "block font-medium truncate " +
+                    (!available.ready ? "text-gray-400" : "text-gray-900")
+                  }
+                >
+                  {CHANNEL_LABELS[channel]}
                 </span>
-                <span className="block text-xs text-gray-500">
-                  {channelAvailability[c].reason}
+                <span className="block text-xs text-gray-500 truncate">
+                  {CHANNEL_DESCRIPTIONS[channel]}
                 </span>
+                <span
+                  className={
+                    "block text-xs mt-0.5 " +
+                    (status.tone === "blocked"
+                      ? "text-red-700"
+                      : !available.ready
+                        ? "text-gray-400"
+                        : "text-gray-700")
+                  }
+                >
+                  {status.detail}
+                </span>
+              </span>
+              <span className="flex flex-col items-end gap-1 min-w-[112px]">
+                <StatusPill label={status.label} tone={status.tone} />
+                {state?.external_url && status.tone === "done" ? (
+                  <a
+                    href={state.external_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-blue-700 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    ouvrir
+                  </a>
+                ) : null}
               </span>
             </label>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function platformStatus({
+  available,
+  isPublished,
+  selected,
+  state,
+}: {
+  available: { ready: boolean; reason: string };
+  isPublished: boolean;
+  selected: boolean;
+  state: ChannelStateSnapshot | undefined;
+}): { label: string; detail: string; tone: PlatformTone } {
+  if (!available.ready) {
+    return { label: "Non disponible", detail: available.reason, tone: "disabled" };
+  }
+  if (!selected) {
+    return {
+      label: "Non sélectionné",
+      detail: "Cocher cette ligne pour inclure cette plateforme.",
+      tone: "waiting",
+    };
+  }
+  if (!isPublished) {
+    return {
+      label: "À publier",
+      detail: "Sélectionnée. Cliquer sur Publier l'annonce pour l'envoyer.",
+      tone: "active",
+    };
+  }
+
+  const rawStatus = state?.last_status ?? null;
+  if (state?.last_error || rawStatus === "error") {
+    return {
+      label: "À vérifier",
+      detail: state?.last_error ?? "La dernière synchronisation a échoué.",
+      tone: "blocked",
+    };
+  }
+  if (rawStatus && SYNC_ACTIVE_STATUSES.has(rawStatus)) {
+    return {
+      label: "En cours",
+      detail: "La demande a été envoyée. En attente d'une confirmation.",
+      tone: "active",
+    };
+  }
+  if (rawStatus && SYNC_DONE_STATUSES.has(rawStatus)) {
+    return {
+      label: rawStatus === "feed_ready" ? "Feed prêt" : "Fait",
+      detail: state?.last_synced_at
+        ? `Dernière mise à jour: ${new Date(state.last_synced_at).toLocaleString("fr-CA")}`
+        : "Synchronisé.",
+      tone: "done",
+    };
+  }
+  if (rawStatus === "unpublished" || rawStatus === "removed") {
+    return {
+      label: "À publier",
+      detail: "Sélectionnée, mais pas encore active sur cette plateforme.",
+      tone: "active",
+    };
+  }
+  if (rawStatus === "skipped") {
+    return {
+      label: "À publier",
+      detail: "Cette plateforme a été ignorée lors de la dernière synchronisation. Publier à nouveau pour réessayer.",
+      tone: "active",
+    };
+  }
+  return {
+    label: "En attente",
+    detail: "Sélectionnée, mais aucune confirmation de synchronisation n'est encore disponible.",
+    tone: "active",
+  };
+}
+
+function StatusPill({ label, tone }: { label: string; tone: PlatformTone }) {
+  const classes: Record<PlatformTone, string> = {
+    done: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    active: "bg-blue-100 text-blue-800 border-blue-200",
+    waiting: "bg-gray-100 text-gray-700 border-gray-200",
+    blocked: "bg-red-100 text-red-800 border-red-200",
+    disabled: "bg-gray-50 text-gray-400 border-gray-200",
+  };
+  return (
+    <span
+      className={
+        "inline-flex items-center justify-center rounded border px-2 py-0.5 text-xs font-medium whitespace-nowrap " +
+        classes[tone]
+      }
+    >
+      {label}
+    </span>
   );
 }
 
@@ -814,7 +936,7 @@ function ConfirmPublishModal({
               <span>{CHANNEL_LABELS[channel]}</span>
               <span className="text-xs text-gray-500 ml-auto">
                 {channelAvailability[channel].ready
-                  ? CHANNEL_TIMING[channel]
+                  ? "Sélectionné pour cette opération"
                   : channelAvailability[channel].reason}
               </span>
             </li>

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
-import { CHANNEL_LABELS, type Channel as LiveChannel } from "@/lib/listings/channel-state";
 import { isWixReady } from "@/lib/wix/config";
 import { isLespacReady } from "@/lib/lespac/config";
 import { isPagePostReady } from "@/lib/meta/page";
@@ -24,9 +23,9 @@ const currencyFmt = new Intl.NumberFormat("fr-CA", {
 
 function getChannelAvailability(): ChannelAvailability {
   return {
-    native: { ready: true, reason: "Catalogue interne actif" },
+    native: { ready: true, reason: "Fiche web Hino active" },
     wix: isWixReady()
-      ? { ready: true, reason: "Collection Wix connectée" }
+      ? { ready: true, reason: "Site Hino / Wix connecté" }
       : { ready: false, reason: "Connexion Wix manquante" },
     fb_marketplace: {
       ready: false,
@@ -173,12 +172,6 @@ export default async function EditPage({
               category: detail.category,
             }}
           />
-          <div className="mt-6 pt-6 border-t">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              État réel des plateformes
-            </h2>
-            <ChannelStateTable state={detail.channel_state} />
-          </div>
           <div id="photos" className="mt-6 pt-6 border-t scroll-mt-24">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
@@ -255,7 +248,7 @@ function PublicationChecklist({
     },
     { label: "Photos", ok: photoCount > 0, href: "#photos", action: "Ajouter" },
     { label: "Photo principale", ok: hasHero, href: "#photos", action: "Choisir" },
-    { label: "Destinations", ok: channels > 0, href: "#canaux", action: "Choisir" },
+    { label: "Plateformes", ok: channels > 0, href: "#canaux", action: "Choisir" },
   ];
   const ready = items.every((item) => item.ok);
   return (
@@ -288,123 +281,6 @@ function PublicationChecklist({
           Données complètes. Le bouton publier sauvegarde avant d&apos;envoyer.
         </p>
       )}
-    </div>
-  );
-}
-
-const CHANNEL_ORDER: LiveChannel[] = [
-  "native",
-  "wix",
-  "fb_marketplace",
-  "fb_page",
-  "google_vla",
-  "lespac",
-  "kijiji",
-  "truckpaper",
-  "marketbook",
-];
-
-const PUBLISHED_STATUSES = new Set([
-  "published",
-  "saved",
-  "upserted",
-  "posted",
-  "triggered",
-  "queued",
-  "feed_ready",
-  "ok",
-  "claimed",
-]);
-
-function readableChannelStatus(status: string | null, lastError: string | null): string {
-  if (lastError || status === "error") return "À vérifier";
-  if (!status) return "Jamais synchronisé";
-  if (PUBLISHED_STATUSES.has(status)) {
-    if (status === "feed_ready") return "Prêt dans le feed";
-    if (status === "queued" || status === "triggered") return "En cours";
-    return "Actif";
-  }
-  if (status === "skipped") return "Ignoré";
-  if (status === "unpublished" || status === "removed") return "Non publié";
-  return status;
-}
-
-function ChannelStateTable({
-  state,
-}: {
-  state: {
-    channel: string;
-    last_status: string | null;
-    last_synced_at: string | null;
-    external_id: string | null;
-    external_url: string | null;
-    last_error: string | null;
-  }[];
-}) {
-  const byChannel = new Map(state.map((s) => [s.channel as LiveChannel, s]));
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
-        <thead className="text-xs uppercase tracking-wide text-gray-500">
-          <tr>
-            <th className="text-left py-1.5 pr-3">Plateforme</th>
-            <th className="text-left py-1.5 pr-3">État</th>
-            <th className="text-left py-1.5 pr-3">Dernière sync</th>
-            <th className="text-left py-1.5 pr-3">Lien externe</th>
-          </tr>
-        </thead>
-        <tbody>
-          {CHANNEL_ORDER.map((ch) => {
-            const s = byChannel.get(ch);
-            const status = s?.last_status ?? null;
-            const error = Boolean(s?.last_error) || status === "error";
-            const published = status ? PUBLISHED_STATUSES.has(status) : false;
-            const label = readableChannelStatus(status, s?.last_error ?? null);
-            const dot = error
-              ? "bg-red-500"
-              : published
-                ? "bg-emerald-500"
-                : status
-                  ? "bg-gray-400"
-                  : "bg-gray-200";
-            return (
-              <tr key={ch} className="border-t">
-                <td className="py-1.5 pr-3 font-medium">{CHANNEL_LABELS[ch]}</td>
-                <td className="py-1.5 pr-3">
-                  <span className="inline-flex items-center gap-2">
-                    <span className={"inline-block w-2 h-2 rounded-full " + dot} />
-                    <span className="text-gray-700">{label}</span>
-                  </span>
-                  {s?.last_error && (
-                    <div className="text-[11px] text-red-700 mt-0.5 max-w-md truncate" title={s.last_error}>
-                      {s.last_error}
-                    </div>
-                  )}
-                </td>
-                <td className="py-1.5 pr-3 text-gray-600 font-mono text-xs">
-                  {s?.last_synced_at
-                    ? new Date(s.last_synced_at).toLocaleString("fr-CA")
-                    : "—"}
-                </td>
-                <td className="py-1.5 pr-3">
-                  {s?.external_url ? (
-                    <a
-                      href={s.external_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-700 hover:underline text-xs break-all"
-                    >
-                      {s.external_id ?? "voir"}
-                    </a>
-                  ) : (
-                    <span className="text-gray-400 text-xs">—</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }
