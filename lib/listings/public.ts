@@ -117,7 +117,7 @@ export async function fetchPublicListingByUnit(
 
   const l = listingRes.data;
   if (!l || !l.is_published || l.hidden) return null;
-  if (channel && !normalizeChannels(l.channels).includes(channel)) return null;
+  if (channel && !normalizeChannels(l.channels, []).includes(channel)) return null;
   // WGIAVL='1' chez SERTI = présent. Quand SERTI bascule à '2' (livré),
   // getVehicleByUnit le retournera quand même (pas filtré), donc on
   // vérifie ici aussi pour exclure les véhicules hors lot du public.

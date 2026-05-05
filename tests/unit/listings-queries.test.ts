@@ -103,7 +103,7 @@ describe("fetchInventory", () => {
     supabaseMock.listing_channel_state = { data: [], error: null };
   });
 
-  it("retourne defaults quand unit absent de listing", async () => {
+  it("retourne une fiche brouillon sans plateforme quand unit absent de listing", async () => {
     (listInventoryVehicles as ReturnType<typeof vi.fn>).mockResolvedValue([baseVehicle]);
     const rows = await fetchInventory();
     expect(rows[0].price_cad).toBe(0);
@@ -112,14 +112,7 @@ describe("fetchInventory", () => {
     expect(rows[0].has_hero).toBe(false);
     expect(rows[0].views_7d).toBe(0);
     expect(rows[0].leads_7d).toBe(0);
-    expect(rows[0].channels).toEqual([
-      "native",
-      "wix",
-      "fb_page",
-      "lespac",
-      "truckpaper",
-      "marketbook",
-    ]);
+    expect(rows[0].channels).toEqual([]);
     expect(rows[0].channel_state).toEqual([]);
   });
 

@@ -9,7 +9,8 @@ export type PublicationError =
   | "description_missing"
   | "no_photos"
   | "no_hero"
-  | "not_available";
+  | "not_available"
+  | "no_channels";
 
 export function validatePublication(l: PublicationCandidate): PublicationError | null {
   if (l.description_fr.trim().length === 0) return "description_missing";

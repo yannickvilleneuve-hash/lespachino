@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export async function GET(request: Request) {
-  const all = await fetchPublicListings({ channel: null });
+  const all = await fetchPublicListings({ channel: "truckpaper" });
   const listings = all.filter(
     (l): l is PublicListing & { hero_url: string } => l.hero_url !== null,
   );

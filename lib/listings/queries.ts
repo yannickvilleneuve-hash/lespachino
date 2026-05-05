@@ -7,7 +7,7 @@ import {
   type Vehicle,
 } from "@/lib/serti/wgi";
 import { publicPhotoUrl } from "@/lib/listings/public";
-import { DEFAULT_CHANNELS, normalizeChannels } from "@/lib/listings/schema";
+import { normalizeChannels } from "@/lib/listings/schema";
 import type { Database } from "@/lib/supabase/types";
 
 type ListingRow = Database["public"]["Tables"]["listing"]["Row"];
@@ -45,7 +45,7 @@ function emptyListing(): Pick<
     price_cad: 0,
     description_fr: "",
     is_published: false,
-    channels: DEFAULT_CHANNELS,
+    channels: [],
     walkaround_video_url: null,
   };
 }
@@ -133,7 +133,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
       ...v,
       price_cad: l?.price_cad ?? 0,
       is_published: l?.is_published ?? false,
-      channels: normalizeChannels(l?.channels),
+      channels: l ? normalizeChannels(l.channels, []) : [],
       photo_count: photos?.count ?? 0,
       has_hero: photos?.hero ?? false,
       hero_url: heroPath ? publicPhotoUrl(heroPath, "thumb") : null,
@@ -200,7 +200,7 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     price_cad: l.price_cad,
     description_fr: l.description_fr,
     is_published: l.is_published,
-    channels: normalizeChannels(l.channels),
+    channels: normalizeChannels(l.channels, []),
     hidden: (l as { hidden?: boolean }).hidden ?? false,
     walkaround_video_url: l.walkaround_video_url ?? null,
     photo_count: photos.length,

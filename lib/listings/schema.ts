@@ -35,19 +35,22 @@ const LEGACY_CHANNEL_MAP: Record<string, Channel | null> = {
   wix: "wix",
 };
 
-export function normalizeChannels(channels: readonly string[] | null | undefined): Channel[] {
+export function normalizeChannels(
+  channels: readonly string[] | null | undefined,
+  fallback: readonly Channel[] = DEFAULT_CHANNELS,
+): Channel[] {
   const normalized: Channel[] = [];
   for (const raw of channels ?? []) {
     const mapped = LEGACY_CHANNEL_MAP[raw] ?? null;
     if (mapped && !normalized.includes(mapped)) normalized.push(mapped);
   }
-  return normalized.length > 0 ? normalized : [...DEFAULT_CHANNELS];
+  return normalized.length > 0 ? normalized : [...fallback];
 }
 
 export const listingFormSchema = z.object({
   price_cad: z.number().min(0, "Doit être ≥ 0"),
   description_fr: z.string().trim().max(4000),
-  channels: z.array(z.enum(CHANNELS)).min(1, "Au moins un canal"),
+  channels: z.array(z.enum(CHANNELS)),
 });
 
 export type ListingFormInput = z.infer<typeof listingFormSchema>;

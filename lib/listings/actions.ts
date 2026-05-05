@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getVehicleByUnit, listInventoryVehicles } from "@/lib/serti/wgi";
-import { listingFormSchema, normalizeChannels, type Channel, type ListingFormInput } from "./schema";
+import {
+  CHANNELS,
+  listingFormSchema,
+  normalizeChannels,
+  type Channel,
+  type ListingFormInput,
+} from "./schema";
 import { validatePublication, type PublicationError } from "./publication";
 import { generateVariants, maskLikelyPlate, variantPath } from "@/lib/photos/resize";
 import { removeBackgroundWithRemoveBg } from "@/lib/photos/background-removal";
@@ -70,12 +76,17 @@ export async function upsertListing(unit: string, input: ListingFormInput): Prom
     .eq("unit", unit)
     .maybeSingle();
   if (previousRes.error) throw new Error(`listing fetch: ${previousRes.error.message}`);
-  const previousChannels = normalizeChannels(previousRes.data?.channels);
+  const previousChannels = previousRes.data ? normalizeChannels(previousRes.data.channels, []) : [];
+  const nextChannels = normalizeChannels(parsed.channels, []);
+  const nextPublished = previousRes.data?.is_published && nextChannels.length === 0
+    ? false
+    : previousRes.data?.is_published;
   const { error } = await supabase.from("listing").upsert({
     unit,
     price_cad: parsed.price_cad,
     description_fr: parsed.description_fr,
-    channels: normalizeChannels(parsed.channels),
+    channels: nextChannels,
+    ...(nextPublished !== undefined ? { is_published: nextPublished } : {}),
     updated_by: userId,
   });
   if (error) throw new Error(`upsertListing: ${error.message}`);
@@ -91,12 +102,20 @@ export async function upsertListing(unit: string, input: ListingFormInput): Prom
     },
   });
   if (previousRes.data?.is_published) {
+    if (!nextPublished && previousChannels.includes("native")) {
+      await recordChannelState(supabase, {
+        unit,
+        channel: "native",
+        status: "unpublished",
+        error: null,
+      });
+    }
     void autoSyncChannels(
       supabase,
       unit,
-      true,
+      Boolean(nextPublished),
       userEmail,
-      normalizeChannels(parsed.channels),
+      nextChannels,
       previousChannels,
     );
   }
@@ -153,7 +172,8 @@ export async function togglePublished(
     ]);
     if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
     if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
-    selectedChannels = normalizeChannels(listingRes.data?.channels);
+    selectedChannels = normalizeChannels(listingRes.data?.channels, []);
+    if (selectedChannels.length === 0) return { ok: false, error: "no_channels" };
 
     const err = validatePublication({
       price_cad: listingRes.data?.price_cad ?? 0,
@@ -169,7 +189,7 @@ export async function togglePublished(
       .eq("unit", unit)
       .maybeSingle();
     if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
-    selectedChannels = normalizeChannels(listingRes.data?.channels);
+    selectedChannels = normalizeChannels(listingRes.data?.channels, []);
   }
 
   const { error } = await supabase.from("listing").upsert({
@@ -196,6 +216,97 @@ export async function togglePublished(
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${unit}`);
   return { ok: true };
+}
+
+export type ListingChannelActionResult =
+  | { ok: true; channels: Channel[]; is_published: boolean }
+  | { ok: false; error: PublicationError };
+
+export async function setListingChannelPublished(
+  unit: string,
+  input: ListingFormInput,
+  channel: Channel,
+  publish: boolean,
+): Promise<ListingChannelActionResult> {
+  if (!(CHANNELS as readonly string[]).includes(channel)) {
+    throw new Error(`Canal invalide: ${channel}`);
+  }
+  const parsed = listingFormSchema.parse(input);
+  const { supabase, userId, userEmail } = await requireUser();
+  const previousRes = await supabase
+    .from("listing")
+    .select("is_published, channels")
+    .eq("unit", unit)
+    .maybeSingle();
+  if (previousRes.error) throw new Error(`listing fetch: ${previousRes.error.message}`);
+
+  const currentChannels = normalizeChannels(parsed.channels, []);
+  const nextChannels = publish
+    ? currentChannels.includes(channel)
+      ? currentChannels
+      : [...currentChannels, channel]
+    : currentChannels.filter((c) => c !== channel);
+
+  if (publish) {
+    const [photosRes, vehicle] = await Promise.all([
+      supabase.from("vehicle_photo").select("is_hero").eq("unit", unit),
+      getVehicleByUnit(unit),
+    ]);
+    if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
+    const err = validatePublication({
+      price_cad: parsed.price_cad,
+      description_fr: parsed.description_fr,
+      photos: photosRes.data,
+      available: Boolean(vehicle?.available && vehicle.status === "available"),
+    });
+    if (err) return { ok: false, error: err };
+  }
+
+  const nextPublished = publish
+    ? true
+    : nextChannels.length > 0
+      ? Boolean(previousRes.data?.is_published)
+      : false;
+
+  const { error } = await supabase.from("listing").upsert({
+    unit,
+    price_cad: parsed.price_cad,
+    description_fr: parsed.description_fr,
+    channels: nextChannels,
+    is_published: nextPublished,
+    updated_by: userId,
+  });
+  if (error) throw new Error(`setListingChannelPublished: ${error.message}`);
+
+  await logActivity({
+    userEmail,
+    action: publish ? "publish_channel" : "unpublish_channel",
+    targetType: "listing",
+    targetId: unit,
+    details: { channel, channels: nextChannels },
+  });
+
+  if (channel === "native") {
+    await recordChannelState(supabase, {
+      unit,
+      channel,
+      status: publish ? "published" : "unpublished",
+      error: null,
+    });
+  } else {
+    await autoSyncChannels(
+      supabase,
+      unit,
+      publish,
+      userEmail,
+      publish ? [channel] : [],
+      [channel],
+    );
+  }
+
+  revalidatePath("/inventaire");
+  revalidatePath(`/inventaire/${unit}`);
+  return { ok: true, channels: nextChannels, is_published: nextPublished };
 }
 
 type ChannelResult = { action: string; error?: string; reason?: string };
@@ -271,7 +382,6 @@ async function autoSyncChannels(
     const wasSelected = previous.has(channel);
     const shouldPublish = isListingPublished && selected;
     if (!shouldPublish && !wasSelected) {
-      if (isListingPublished) await recordSkipped(supabase, unit, channel, "Canal non sélectionné");
       continue;
     }
 
@@ -473,7 +583,7 @@ export async function retryPublicationJob(jobId: string): Promise<void> {
     .eq("id", jobId)
     .single();
   if (error) throw new Error(`publication_job: ${error.message}`);
-  const channels = normalizeChannels([job.channel]);
+  const channels = normalizeChannels([job.channel], []);
   const shouldPublish = job.action !== "unpublish";
   await autoSyncChannels(supabase, job.unit, shouldPublish, userEmail, channels, channels);
   revalidatePath("/dashboard/publication-jobs");
@@ -520,6 +630,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
     no_photos: 0,
     no_hero: 0,
     not_available: 0,
+    no_channels: 0,
   };
 
   const toPublish: string[] = [];
@@ -528,6 +639,12 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
 
   for (const l of listingsRes.data) {
     if (l.is_published || l.hidden) {
+      skipped += 1;
+      continue;
+    }
+    const channels = normalizeChannels(l.channels, []);
+    if (channels.length === 0) {
+      reasons.no_channels += 1;
       skipped += 1;
       continue;
     }
@@ -543,7 +660,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
       continue;
     }
     toPublish.push(l.unit);
-    channelsByUnit.set(l.unit, normalizeChannels(l.channels));
+    channelsByUnit.set(l.unit, channels);
   }
 
   if (toPublish.length > 0) {
@@ -566,7 +683,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
     },
   });
   for (const unit of toPublish) {
-    const channels = channelsByUnit.get(unit) ?? normalizeChannels(null);
+    const channels = channelsByUnit.get(unit) ?? [];
     await recordChannelState(supabase, {
       unit,
       channel: "native",

@@ -75,7 +75,7 @@ export async function syncAllToLespac(): Promise<SyncResult[]> {
 
   const results: SyncResult[] = [];
   for (const l of listings) {
-    const shouldPublish = l.is_published && !l.hidden && normalizeChannels(l.channels).includes("lespac");
+    const shouldPublish = l.is_published && !l.hidden && normalizeChannels(l.channels, []).includes("lespac");
     results.push(await syncOneToLespac(l.unit, shouldPublish));
   }
   return results;

@@ -101,7 +101,7 @@ export async function syncAllToWix(): Promise<SyncResult[]> {
 
   const results: SyncResult[] = [];
   for (const l of listings) {
-    const shouldPublish = l.is_published && !l.hidden && normalizeChannels(l.channels).includes("wix");
+    const shouldPublish = l.is_published && !l.hidden && normalizeChannels(l.channels, []).includes("wix");
     results.push(await syncOneToWix(l.unit, shouldPublish));
   }
   return results;

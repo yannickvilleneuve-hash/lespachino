@@ -193,6 +193,7 @@ const PUBLICATION_ERR_FR: Record<string, string> = {
   no_photos: "Aucune photo",
   no_hero: "Pas de photo principale",
   not_available: "Non disponible SERTI",
+  no_channels: "Aucune plateforme choisie",
 };
 
 const DEFAULT_DIR: Record<SortKey, SortDir> = {

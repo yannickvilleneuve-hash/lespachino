@@ -23,6 +23,11 @@ describe("normalizeChannels", () => {
     expect(normalizeChannels(null)).toEqual(DEFAULT_CHANNELS);
   });
 
+  it("peut conserver une liste vide quand aucun default n'est voulu", () => {
+    expect(normalizeChannels([], [])).toEqual([]);
+    expect(normalizeChannels(null, [])).toEqual([]);
+  });
+
   it("retire les doublons et valeurs inconnues", () => {
     expect(normalizeChannels(["fb", "fb_marketplace", "bad", "wix"])).toEqual([
       "fb_marketplace",

@@ -12,6 +12,7 @@ import {
 } from "@/lib/listings/schema";
 import {
   generateAssistedListingDescription,
+  setListingChannelPublished,
   upsertListing,
   togglePublished,
 } from "@/lib/listings/actions";
@@ -29,6 +30,7 @@ const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
   no_photos: "Il faut au moins une photo avant de publier.",
   no_hero: "Il faut désigner une photo principale.",
   not_available: "SERTI indique que ce véhicule n'est pas disponible à la vente.",
+  no_channels: "Choisis au moins une plateforme, ou utilise le bouton Publier dans la ligne voulue.",
 };
 
 const CHANNEL_LABELS: Record<Channel, string> = {
@@ -65,6 +67,11 @@ const SYNC_DONE_STATUSES = new Set([
   "claimed",
 ]);
 const SYNC_ACTIVE_STATUSES = new Set(["triggered", "queued"]);
+
+type PendingChannelAction = {
+  channel: Channel;
+  publish: boolean;
+};
 
 export type ChannelAvailability = Record<
   Channel,
@@ -123,6 +130,8 @@ export default function ListingForm({
   const [descMsg, setDescMsg] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmChannels, setConfirmChannels] = useState<Channel[]>([]);
+  const [pendingChannelAction, setPendingChannelAction] =
+    useState<PendingChannelAction | null>(null);
   const [showOverwrite, setShowOverwrite] = useState(false);
   const [tplBody, setTplBody] = useState<BodyType>("none");
   const [tplLength, setTplLength] = useState<string>("");
@@ -148,8 +157,7 @@ export default function ListingForm({
   });
 
   function sanitizeChannels(channels: readonly Channel[]): Channel[] {
-    const enabled = channels.filter((c) => channelAvailability[c]?.ready);
-    return enabled.length > 0 ? enabled : ["native"];
+    return channels.filter((c) => channelAvailability[c]?.ready);
   }
 
   function buildOpts(): SuggestOptions {
@@ -248,6 +256,44 @@ export default function ListingForm({
         setPublishMsg("Corrige les champs en rouge avant de publier.");
       },
     )();
+  }
+
+  function buildChannelActionInput(action: PendingChannelAction): ListingFormInput {
+    const values = getValues();
+    const current = sanitizeChannels(values.channels ?? []);
+    const channels = action.publish
+      ? current.includes(action.channel)
+        ? current
+        : [...current, action.channel]
+      : current.filter((channel) => channel !== action.channel);
+    return { ...values, channels };
+  }
+
+  function confirmPlatformAction() {
+    const action = pendingChannelAction;
+    if (!action) return;
+    setPendingChannelAction(null);
+    setPublishMsg(null);
+    startTransition(async () => {
+      try {
+        const clean = buildChannelActionInput(action);
+        const result = await setListingChannelPublished(
+          unit,
+          clean,
+          action.channel,
+          action.publish,
+        );
+        if (!result.ok) {
+          setPublishMsg(PUBLICATION_ERROR_MSG[result.error]);
+          return;
+        }
+        reset({ ...clean, channels: result.channels });
+        setPublishMsg(`${CHANNEL_LABELS[action.channel]}: c'est fait.`);
+        router.refresh();
+      } catch (err) {
+        setPublishMsg(err instanceof Error ? err.message : String(err));
+      }
+    });
   }
 
   return (
@@ -393,10 +439,15 @@ export default function ListingForm({
 
         <PlatformPublicationList
           isPublished={isPublished}
+          isPending={isPending}
           selectedChannels={selectedChannels}
           channelAvailability={channelAvailability}
           channelState={channelState}
           register={register}
+          onChannelAction={(channel, publish) => {
+            setPublishMsg(null);
+            setPendingChannelAction({ channel, publish });
+          }}
         />
         {errors.channels && (
           <p className="text-sm text-red-600 mt-1">{errors.channels.message}</p>
@@ -442,6 +493,14 @@ export default function ListingForm({
           channelAvailability={channelAvailability}
           onCancel={() => setShowConfirm(false)}
           onConfirm={confirmTogglePublish}
+        />
+      )}
+      {pendingChannelAction && (
+        <ConfirmPlatformActionModal
+          action={pendingChannelAction}
+          unit={unit}
+          onCancel={() => setPendingChannelAction(null)}
+          onConfirm={confirmPlatformAction}
         />
       )}
       {showOverwrite && (
@@ -495,14 +554,14 @@ function PublicationSteps({
           status={
             selectedChannels.length > 0
               ? `${selectedChannels.length} sélectionnée${selectedChannels.length > 1 ? "s" : ""}`
-              : "Aucune"
+              : "Au choix"
           }
           detail={
             selectedChannels.length > 0
               ? selectedChannels.map((c) => CHANNEL_LABELS[c]).join(", ")
-              : "Choisir au moins une plateforme"
+              : "Publier seulement où c'est nécessaire"
           }
-          tone={selectedChannels.length > 0 ? "done" : "active"}
+          tone={selectedChannels.length > 0 ? "done" : "waiting"}
         />
         <PublicationStep
           number={3}
@@ -545,15 +604,13 @@ function summarizeSync(
   channelState: ChannelStateSnapshot[],
 ): { status: string; detail: string; tone: StepTone } {
   if (selectedChannels.length === 0) {
-    return { status: "En attente", detail: "Aucune plateforme", tone: "waiting" };
+    return { status: "Aucune active", detail: "Publier une plateforme au besoin", tone: "waiting" };
   }
   if (!isPublished) {
-    return { status: "En attente", detail: "Pas encore publié", tone: "waiting" };
+    return { status: "Brouillon", detail: "Rien n'est publié", tone: "waiting" };
   }
 
   const byChannel = new Map(channelState.map((s) => [s.channel, s]));
-  let done = 0;
-  let running = 0;
   let pending = 0;
   let error = 0;
   for (const channel of selectedChannels) {
@@ -562,37 +619,31 @@ function summarizeSync(
     if (state?.last_error || status === "error") {
       error += 1;
     } else if (status && SYNC_DONE_STATUSES.has(status)) {
-      done += 1;
+      continue;
     } else if (status && SYNC_ACTIVE_STATUSES.has(status)) {
-      running += 1;
+      pending += 1;
     } else {
       pending += 1;
     }
   }
-  const parts = [
-    done > 0 ? `${done} fait${done > 1 ? "s" : ""}` : null,
-    running > 0 ? `${running} en cours` : null,
-    pending > 0 ? `${pending} en attente` : null,
-    error > 0 ? `${error} à vérifier` : null,
-  ].filter((part): part is string => Boolean(part));
 
   if (error > 0) {
     return {
-      status: parts.join(", "),
+      status: "À vérifier",
       detail: "Voir les plateformes ci-dessous",
       tone: "blocked",
     };
   }
-  if (pending > 0 || running > 0) {
+  if (pending > 0) {
     return {
-      status: parts.join(", "),
-      detail: "Certaines plateformes n'ont pas confirmé",
+      status: "En cours",
+      detail: "Voir la ligne de la plateforme",
       tone: "active",
     };
   }
   return {
-    status: `${done} fait${done > 1 ? "s" : ""}`,
-    detail: "Toutes les plateformes sélectionnées sont à jour",
+    status: "À jour",
+    detail: "Plateformes choisies synchronisées",
     tone: "done",
   };
 }
@@ -643,16 +694,20 @@ type PlatformTone = "done" | "active" | "waiting" | "blocked" | "disabled";
 
 function PlatformPublicationList({
   isPublished,
+  isPending,
   selectedChannels,
   channelAvailability,
   channelState,
   register,
+  onChannelAction,
 }: {
   isPublished: boolean;
+  isPending: boolean;
   selectedChannels: Set<Channel>;
   channelAvailability: ChannelAvailability;
   channelState: ChannelStateSnapshot[];
   register: UseFormRegister<ListingFormInput>;
+  onChannelAction: (channel: Channel, publish: boolean) => void;
 }) {
   const byChannel = new Map(channelState.map((s) => [s.channel, s]));
   const rows = CHANNELS.map((channel) => {
@@ -671,9 +726,6 @@ function PlatformPublicationList({
       }),
     };
   });
-  const selectedCount = rows.filter((row) => row.selected && row.available.ready).length;
-  const doneCount = rows.filter((row) => row.status.tone === "done").length;
-  const activeCount = rows.filter((row) => row.status.tone === "active").length;
   const blockedCount = rows.filter((row) => row.status.tone === "blocked").length;
 
   return (
@@ -681,20 +733,19 @@ function PlatformPublicationList({
       <div className="px-3 py-2 bg-gray-50 border-b">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-wide text-gray-500 font-semibold">
           <span>Plateforme</span>
-          <span>{selectedCount} sélectionnée{selectedCount > 1 ? "s" : ""}</span>
+          <span>Publier seulement où c&apos;est nécessaire</span>
         </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <StatusPill label={`${doneCount} fait${doneCount > 1 ? "s" : ""}`} tone="done" />
-          <StatusPill label={`${activeCount} à faire`} tone="active" />
-          {blockedCount > 0 && (
-            <StatusPill label={`${blockedCount} à vérifier`} tone="blocked" />
-          )}
-        </div>
+        {blockedCount > 0 && (
+          <div className="mt-2">
+            <StatusPill label="À vérifier" tone="blocked" />
+          </div>
+        )}
       </div>
       <div className="divide-y">
         {rows.map(({ channel, selected, available, state, status }) => {
+          const action = platformPrimaryAction({ isPublished, selected, status });
           return (
-            <label
+            <div
               key={channel}
               className={
                 "grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 px-3 py-3 text-sm " +
@@ -706,13 +757,15 @@ function PlatformPublicationList({
               }
               title={status.detail}
             >
-              <input
-                type="checkbox"
-                value={channel}
-                disabled={!available.ready}
-                {...register("channels")}
-                className="mt-1"
-              />
+              <label className="mt-1">
+                <input
+                  type="checkbox"
+                  value={channel}
+                  disabled={!available.ready}
+                  aria-label={CHANNEL_LABELS[channel]}
+                  {...register("channels")}
+                />
+              </label>
               <span className="min-w-0">
                 <span
                   className={
@@ -738,8 +791,27 @@ function PlatformPublicationList({
                   {status.detail}
                 </span>
               </span>
-              <span className="flex flex-col items-end gap-1 min-w-[112px]">
+              <span className="flex flex-col items-end gap-1 min-w-[124px]">
                 <StatusPill label={status.label} tone={status.tone} />
+                {action && available.ready ? (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onChannelAction(channel, action.publish);
+                    }}
+                    className={
+                      "rounded px-2 py-1 text-xs font-medium disabled:opacity-50 " +
+                      (action.publish
+                        ? "bg-green-700 text-white hover:bg-green-800"
+                        : "bg-gray-200 text-gray-800 hover:bg-gray-300")
+                    }
+                  >
+                    {isPending ? "..." : action.label}
+                  </button>
+                ) : null}
                 {state?.external_url && status.tone === "done" ? (
                   <a
                     href={state.external_url}
@@ -752,12 +824,26 @@ function PlatformPublicationList({
                   </a>
                 ) : null}
               </span>
-            </label>
+            </div>
           );
         })}
       </div>
     </div>
   );
+}
+
+function platformPrimaryAction({
+  isPublished,
+  selected,
+  status,
+}: {
+  isPublished: boolean;
+  selected: boolean;
+  status: { label: string; tone: PlatformTone };
+}): { label: string; publish: boolean } | null {
+  if (status.tone === "disabled") return null;
+  const live = selected && isPublished && (status.tone === "done" || status.label === "En cours");
+  return live ? { label: "Retirer", publish: false } : { label: "Publier", publish: true };
 }
 
 function platformStatus({
@@ -776,8 +862,8 @@ function platformStatus({
   }
   if (!selected) {
     return {
-      label: "Non sélectionné",
-      detail: "Cocher cette ligne pour inclure cette plateforme.",
+      label: "Optionnel",
+      detail: "Pas choisi pour ce véhicule.",
       tone: "waiting",
     };
   }
@@ -895,6 +981,60 @@ function ConfirmOverwriteModal({
   );
 }
 
+function ConfirmPlatformActionModal({
+  action,
+  unit,
+  onCancel,
+  onConfirm,
+}: {
+  action: PendingChannelAction;
+  unit: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const verb = action.publish ? "Publier" : "Retirer";
+  const platform = CHANNEL_LABELS[action.channel];
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-semibold mb-2">
+          {verb} {unit} sur {platform}?
+        </h2>
+        <p className="text-sm text-gray-600 mb-5">
+          {action.publish
+            ? "Le formulaire sera sauvegardé, puis cette plateforme seulement sera publiée."
+            : "Le formulaire sera sauvegardé, puis cette plateforme seulement sera retirée."}
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm rounded border hover:bg-gray-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={
+              "px-4 py-2 text-sm rounded text-white " +
+              (action.publish ? "bg-green-700 hover:bg-green-800" : "bg-gray-700 hover:bg-gray-800")
+            }
+          >
+            C&apos;est fait
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ConfirmPublishModal({
   isPublished,
   unit,
@@ -910,7 +1050,6 @@ function ConfirmPublishModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const action = isPublished ? "dépublier" : "publier";
   const verb = isPublished ? "Dépublier" : "Publier";
   return (
     <div
@@ -958,7 +1097,7 @@ function ConfirmPublishModal({
               (isPublished ? "bg-gray-700 hover:bg-gray-800" : "bg-green-700 hover:bg-green-800")
             }
           >
-            {`Oui, ${action}`}
+            C&apos;est fait
           </button>
         </div>
       </div>
