@@ -34,6 +34,9 @@ export default async function InventairePage() {
             <Link href="/inventaire/sandhills" className="text-xs text-white/70 hover:text-white">
               Sandhills
             </Link>
+            <Link href="/dashboard/meta" className="text-xs text-white/70 hover:text-white">
+              Meta
+            </Link>
             <Link href="/inventaire/leads" className="text-xs text-white/70 hover:text-white">
               Leads
             </Link>
