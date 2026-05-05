@@ -13,7 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function EmbedCatalog() {
-  const listings = await fetchPublicListings();
+  const listings = (await fetchPublicListings({ channel: "wix" })).filter(
+    (l) => l.status === "available",
+  );
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
   return (
