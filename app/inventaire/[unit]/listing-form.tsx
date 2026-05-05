@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CHANNELS,
@@ -54,6 +54,9 @@ const CHANNEL_TIMING: Record<Channel, string> = {
   truckpaper: "feed CSV",
   marketbook: "feed CSV",
 };
+
+const PRIMARY_CHANNELS: Channel[] = ["native", "wix", "lespac", "fb_page"];
+const FEED_CHANNELS: Channel[] = ["truckpaper", "marketbook"];
 
 export type ChannelAvailability = Record<
   Channel,
@@ -107,6 +110,7 @@ export default function ListingForm({
     getValues,
     formState: { errors, isSubmitting, isDirty, isSubmitSuccessful },
     reset,
+    control,
   } = useForm<ListingFormInput>({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
@@ -169,6 +173,11 @@ export default function ListingForm({
 
   const needsLength = tplBody !== "none";
   const needsBrand = tplBody === "fourgon_montecharge" || tplBody === "fourgon_frio";
+  const watchedChannels = useWatch({ control, name: "channels" });
+  const selectedChannels = new Set(watchedChannels ?? []);
+  const readyPrimaryChannels = PRIMARY_CHANNELS.filter((c) => channelAvailability[c]?.ready);
+  const readyFeedChannels = FEED_CHANNELS.filter((c) => channelAvailability[c]?.ready);
+  const unavailableChannels = CHANNELS.filter((c) => !channelAvailability[c]?.ready);
 
   async function onSubmit(values: ListingFormInput) {
     const clean = { ...values, channels: sanitizeChannels(values.channels) };
@@ -326,40 +335,74 @@ export default function ListingForm({
         )}
       </div>
 
-      <div id="canaux" className="scroll-mt-24">
-        <label className="block text-sm font-medium mb-2">Où publier</label>
-        <div className="grid grid-cols-2 gap-2">
-          {CHANNELS.map((c) => {
-            const available = channelAvailability[c];
-            const disabled = !available.ready;
-            return (
-              <label
-                key={c}
-                className={
-                  "flex items-start gap-2 text-sm rounded border px-2 py-2 " +
-                  (disabled
-                    ? "border-gray-200 bg-gray-50 text-gray-400"
-                    : "border-gray-200 bg-white text-gray-800")
-                }
-                title={available.reason}
-              >
-                <input
-                  type="checkbox"
-                  value={c}
-                  disabled={disabled}
-                  {...register("channels")}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="block">{CHANNEL_LABELS[c]}</span>
-                  <span className={disabled ? "text-xs text-gray-400" : "text-xs text-gray-500"}>
-                    {available.reason}
-                  </span>
-                </span>
-              </label>
-            );
-          })}
+      <div id="canaux" className="scroll-mt-24 space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <label className="block text-sm font-medium">Destinations sélectionnées</label>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Ces choix seront utilisés au prochain clic sur Publier l&apos;annonce.
+            </p>
+          </div>
+          <span
+            className={
+              "inline-flex px-2 py-0.5 rounded text-xs font-medium " +
+              (isPublished
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-gray-100 text-gray-700")
+            }
+          >
+            {isPublished ? "Annonce publiée" : "Brouillon"}
+          </span>
         </div>
+
+        {readyPrimaryChannels.length > 0 && (
+          <ChannelPickerGroup
+            title="Sites et annonces"
+            channels={readyPrimaryChannels}
+            selectedChannels={selectedChannels}
+            channelAvailability={channelAvailability}
+            register={register}
+          />
+        )}
+        {readyFeedChannels.length > 0 && (
+          <ChannelPickerGroup
+            title="Feeds partenaires"
+            channels={readyFeedChannels}
+            selectedChannels={selectedChannels}
+            channelAvailability={channelAvailability}
+            register={register}
+          />
+        )}
+        {unavailableChannels.length > 0 && (
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1.5">
+              Non disponibles
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {unavailableChannels.map((c) => (
+                <label
+                  key={c}
+                  className="flex items-start gap-2 text-sm rounded border border-gray-200 bg-gray-50 px-2 py-2 text-gray-400"
+                  title={channelAvailability[c].reason}
+                >
+                  <input
+                    type="checkbox"
+                    value={c}
+                    disabled
+                    {...register("channels")}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-medium">{CHANNEL_LABELS[c]}</span>
+                    <span className="block text-xs text-gray-400">
+                      {channelAvailability[c].reason}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         {errors.channels && (
           <p className="text-sm text-red-600 mt-1">{errors.channels.message}</p>
         )}
@@ -416,6 +459,63 @@ export default function ListingForm({
         />
       )}
     </form>
+  );
+}
+
+function ChannelPickerGroup({
+  title,
+  channels,
+  selectedChannels,
+  channelAvailability,
+  register,
+}: {
+  title: string;
+  channels: Channel[];
+  selectedChannels: Set<Channel>;
+  channelAvailability: ChannelAvailability;
+  register: ReturnType<typeof useForm<ListingFormInput>>["register"];
+}) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1.5">
+        {title}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {channels.map((c) => {
+          const selected = selectedChannels.has(c);
+          return (
+            <label
+              key={c}
+              className={
+                "flex items-start gap-2 text-sm rounded border px-2 py-2 " +
+                (selected
+                  ? "border-blue-300 bg-blue-50 text-gray-900"
+                  : "border-gray-200 bg-white text-gray-800")
+              }
+              title={channelAvailability[c].reason}
+            >
+              <input
+                type="checkbox"
+                value={c}
+                {...register("channels")}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="flex items-center gap-2">
+                  <span className="font-medium">{CHANNEL_LABELS[c]}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                    {CHANNEL_TIMING[c]}
+                  </span>
+                </span>
+                <span className="block text-xs text-gray-500">
+                  {channelAvailability[c].reason}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

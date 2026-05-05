@@ -165,7 +165,7 @@ export default async function EditPage({
           />
           <div className="mt-6 pt-6 border-t">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Affiché sur
+              État réel des plateformes
             </h2>
             <ChannelStateTable state={detail.channel_state} />
           </div>
@@ -212,7 +212,7 @@ function PublicationChecklist({
     },
     { label: "Photos", ok: photoCount > 0, href: "#photos", action: "Ajouter" },
     { label: "Photo principale", ok: hasHero, href: "#photos", action: "Choisir" },
-    { label: "Canaux", ok: channels > 0, href: "#canaux", action: "Choisir" },
+    { label: "Destinations", ok: channels > 0, href: "#canaux", action: "Choisir" },
   ];
   const ready = items.every((item) => item.ok);
   return (
