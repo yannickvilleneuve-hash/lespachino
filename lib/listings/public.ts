@@ -7,6 +7,7 @@ import {
 import { variantPath, type PhotoVariant } from "@/lib/photos/resize";
 import type { Database } from "@/lib/supabase/types";
 import { normalizeChannels, type Channel } from "./schema";
+import { publicMileageKm } from "./mileage";
 
 type PhotoRow = Database["public"]["Tables"]["vehicle_photo"]["Row"];
 
@@ -38,7 +39,7 @@ export function publicPhotoUrl(storagePath: string, variant: PhotoVariant = "ori
 function stripCost<V extends Vehicle>(v: V): PublicVehicle {
   const { cost: _cost, ...rest } = v;
   void _cost;
-  return rest;
+  return { ...rest, km: publicMileageKm(rest) };
 }
 
 export async function fetchPublicListings(options: PublicListingOptions = {}): Promise<PublicListing[]> {

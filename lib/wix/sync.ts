@@ -3,6 +3,7 @@ import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
 import { publicPhotoUrl } from "@/lib/listings/public";
 import { normalizeChannels } from "@/lib/listings/schema";
+import { publicMileageKm } from "@/lib/listings/mileage";
 import { saveItem, removeItem, type WixInventoryItem } from "./client";
 
 const BASE_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://camion-hino.ca";
@@ -60,7 +61,7 @@ export async function syncOneToWix(unit: string, shouldPublish: boolean): Promis
         make: detail.make,
         model: detail.model,
         category: detail.category,
-        km: detail.km,
+        km: publicMileageKm(detail),
         color: detail.color,
         priceCad: null,
         priceLabel: PUBLIC_PRICE_LABEL,
