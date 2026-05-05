@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { getVehicleByUnit, listInventoryVehicles, type Vehicle } from "@/lib/serti/wgi";
+import {
+  getCostTransactionsByUnit,
+  getVehicleByUnit,
+  listInventoryVehicles,
+  type CostTransaction,
+  type Vehicle,
+} from "@/lib/serti/wgi";
 import { publicPhotoUrl } from "@/lib/listings/public";
 import { DEFAULT_CHANNELS, normalizeChannels } from "@/lib/listings/schema";
 import type { Database } from "@/lib/supabase/types";
@@ -27,6 +33,8 @@ export interface InventoryDetail extends InventoryRow {
   description_fr: string;
   photos: PhotoRow[];
   channel_state: ChannelStateRow[];
+  cost_transactions: CostTransaction[];
+  cost_transactions_total: number;
 }
 
 function emptyListing(): Pick<
@@ -146,7 +154,14 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [listingRes, photosRes, viewsRes, leadsRes, channelStateRes] = await Promise.all([
+  const [
+    listingRes,
+    photosRes,
+    viewsRes,
+    leadsRes,
+    channelStateRes,
+    costTransactions,
+  ] = await Promise.all([
     supabase.from("listing").select("*").eq("unit", unit).maybeSingle(),
     supabase
       .from("vehicle_photo")
@@ -167,6 +182,7 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
       .from("listing_channel_state")
       .select("*")
       .eq("unit", unit),
+    getCostTransactionsByUnit(unit),
   ]);
 
   if (listingRes.error) throw new Error(`listing fetch: ${listingRes.error.message}`);
@@ -175,9 +191,12 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
 
   const l = listingRes.data ?? { ...emptyListing(), unit };
   const photos = photosRes.data;
+  const costTransactionsTotal = costTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const costTotal = costTransactions.length > 0 ? costTransactionsTotal : vehicle.cost;
 
   return {
     ...vehicle,
+    cost: costTotal,
     price_cad: l.price_cad,
     description_fr: l.description_fr,
     is_published: l.is_published,
@@ -194,5 +213,7 @@ export async function fetchVehicleByUnit(unit: string): Promise<InventoryDetail 
     leads_7d: leadsRes.data?.length ?? 0,
     photos,
     channel_state: channelStateRes.data ?? [],
+    cost_transactions: costTransactions,
+    cost_transactions_total: costTotal,
   };
 }

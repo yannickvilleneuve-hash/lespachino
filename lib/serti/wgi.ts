@@ -28,6 +28,20 @@ export interface Vehicle {
   avail_comment: string;
 }
 
+export interface CostTransaction {
+  id: string;
+  date: string | null;
+  invoice: string;
+  debit_credit: string;
+  gl_account: string;
+  amount: number;
+  description: string;
+  address_number: string;
+  stock_number: string;
+  type: string;
+  batch_number: number;
+}
+
 interface WgiRow {
   WGISER: string;
   WGIUNM: string;
@@ -42,6 +56,22 @@ interface WgiRow {
   WGIDAV: string;
   WGIAVL: string;
   WGIAVC: string;
+}
+
+interface WgaRow {
+  WGAID: string;
+  WGADAT: string;
+  WGAINV: string;
+  WGADCI: string;
+  WGAGLA: string;
+  WGAAMT: string;
+  WGADES: string;
+  WGAADR: string;
+  WGASTK: string;
+  WGANUM: string;
+  WGATYP: string;
+  WGASTP: string;
+  WGARAN: string;
 }
 
 const SELECT_COLS =
@@ -97,11 +127,32 @@ function parseYyyymmdd(v: string | null | undefined): string | null {
   return `${y}-${m}-${d}`;
 }
 
+function signedAmount(amount: number, debitCredit: string): number {
+  return debitCredit.trim().toUpperCase() === "C" ? -amount : amount;
+}
+
 export function normalizeSertiStatus(raw: string): SertiStatus {
   const t = (raw ?? "").trim().toUpperCase();
   if (t === "S") return "sold";
   if (t === "R") return "quoted";
   return "available";
+}
+
+function mapCostTransaction(row: WgaRow): CostTransaction {
+  const debitCredit = s(row.WGADCI);
+  return {
+    id: s(row.WGAID),
+    date: parseYyyymmdd(row.WGADAT),
+    invoice: s(row.WGAINV),
+    debit_credit: debitCredit,
+    gl_account: s(row.WGAGLA),
+    amount: signedAmount(n(row.WGAAMT), debitCredit),
+    description: s(row.WGADES),
+    address_number: s(row.WGAADR),
+    stock_number: s(row.WGASTK) || s(row.WGANUM),
+    type: s(row.WGATYP),
+    batch_number: n(row.WGASTP),
+  };
 }
 
 function mapRow(row: WgiRow): Vehicle {
@@ -145,6 +196,22 @@ export async function getVehicleByUnit(unit: string): Promise<Vehicle | null> {
       [unit.trim()],
     );
     return row ? mapRow(row) : null;
+  });
+}
+
+/** Transactions de coûtant d'une unité. Leur somme correspond au coûtant WGI.WGICST. */
+export async function getCostTransactionsByUnit(unit: string): Promise<CostTransaction[]> {
+  const key = `cost:${unit.trim().toUpperCase()}`;
+  return cached(key, async () => {
+    const rows = await query<WgaRow>(
+      `SELECT WGAID, WGADAT, WGAINV, WGADCI, WGAGLA, WGAAMT, WGADES, WGAADR,
+              WGASTK, WGANUM, WGATYP, WGASTP, WGARAN
+       FROM SDSFC.WGA
+       WHERE TRIM(WGASTK) = ? OR TRIM(WGANUM) = ?
+       ORDER BY WGADAT, WGARAN`,
+      [unit.trim(), unit.trim()],
+    );
+    return rows.map(mapCostTransaction);
   });
 }
 

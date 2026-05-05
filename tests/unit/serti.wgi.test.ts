@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/serti/client", () => ({ queryOne: vi.fn(), query: vi.fn() }));
 
 import {
+  getCostTransactionsByUnit,
   getVehicleByVin,
   listActiveVehicles,
   listInventoryVehicles,
@@ -87,6 +88,61 @@ describe("normalizeSertiStatus", () => {
     expect(normalizeSertiStatus("R")).toBe("quoted");
     expect(normalizeSertiStatus("S")).toBe("sold");
     expect(normalizeSertiStatus("")).toBe("available");
+  });
+});
+
+describe("getCostTransactionsByUnit", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retourne les transactions signées d'une unité", async () => {
+    (query as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        WGAID: "E",
+        WGADAT: "20260331",
+        WGAINV: "1462067",
+        WGADCI: "D",
+        WGAGLA: "C110038",
+        WGAAMT: "9000.00",
+        WGADES: "ACHAT",
+        WGAADR: "",
+        WGASTK: "I0560U",
+        WGANUM: "I0560U",
+        WGATYP: "W",
+        WGASTP: "123",
+        WGARAN: "1",
+      },
+      {
+        WGAID: "A",
+        WGADAT: "20260422",
+        WGAINV: "28384",
+        WGADCI: "C",
+        WGAGLA: "C110038",
+        WGAAMT: "100.00",
+        WGADES: "CREDIT",
+        WGAADR: "",
+        WGASTK: "I0560U",
+        WGANUM: "I0560U",
+        WGATYP: "W",
+        WGASTP: "124",
+        WGARAN: "2",
+      },
+    ]);
+
+    const rows = await getCostTransactionsByUnit("I0560U");
+    expect(rows).toEqual([
+      expect.objectContaining({
+        date: "2026-03-31",
+        description: "ACHAT",
+        invoice: "1462067",
+        amount: 9000,
+      }),
+      expect.objectContaining({
+        date: "2026-04-22",
+        description: "CREDIT",
+        invoice: "28384",
+        amount: -100,
+      }),
+    ]);
   });
 });
 

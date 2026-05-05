@@ -13,6 +13,7 @@ const supabaseMock = {
 vi.mock("@/lib/serti/wgi", () => ({
   listInventoryVehicles: vi.fn(),
   getVehicleByUnit: vi.fn(),
+  getCostTransactionsByUnit: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -67,7 +68,11 @@ function tableHandle(table: string) {
 }
 
 import { fetchInventory, fetchVehicleByUnit } from "@/lib/listings/queries";
-import { listInventoryVehicles, getVehicleByUnit } from "@/lib/serti/wgi";
+import {
+  getCostTransactionsByUnit,
+  getVehicleByUnit,
+  listInventoryVehicles,
+} from "@/lib/serti/wgi";
 
 const baseVehicle = {
   vin: "V1",
@@ -90,6 +95,7 @@ const baseVehicle = {
 describe("fetchInventory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (getCostTransactionsByUnit as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     supabaseMock.listing = { data: [], error: null };
     supabaseMock.photos = { data: [], error: null };
     supabaseMock.view_event = { data: [], error: null };
@@ -229,5 +235,44 @@ describe("fetchVehicleByUnit", () => {
     expect(d?.has_hero).toBe(true);
     expect(d?.photos).toHaveLength(1);
     expect(d?.channel_state).toEqual([]);
+    expect(d?.cost).toBe(50000);
+    expect(d?.cost_transactions).toEqual([]);
+    expect(d?.cost_transactions_total).toBe(50000);
+  });
+
+  it("utilise les transactions de coûtant quand disponibles", async () => {
+    (getVehicleByUnit as ReturnType<typeof vi.fn>).mockResolvedValue(baseVehicle);
+    (getCostTransactionsByUnit as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "E",
+        date: "2026-03-31",
+        invoice: "1462067",
+        debit_credit: "D",
+        gl_account: "C110038",
+        amount: 9000,
+        description: "ACHAT",
+        address_number: "",
+        stock_number: "U1",
+        type: "W",
+        batch_number: 1,
+      },
+      {
+        id: "A",
+        date: "2026-04-22",
+        invoice: "28384",
+        debit_credit: "D",
+        gl_account: "C110038",
+        amount: 1380,
+        description: "SERVICE",
+        address_number: "",
+        stock_number: "U1",
+        type: "W",
+        batch_number: 2,
+      },
+    ]);
+    const d = await fetchVehicleByUnit("U1");
+    expect(d?.cost).toBe(10380);
+    expect(d?.cost_transactions_total).toBe(10380);
+    expect(d?.cost_transactions).toHaveLength(2);
   });
 });

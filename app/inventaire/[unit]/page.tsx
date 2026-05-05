@@ -132,7 +132,10 @@ export default async function EditPage({
             <p className="text-xs text-red-700 font-semibold uppercase tracking-wide">
               Coûtant interne — ne pas divulguer
             </p>
-            <p className="font-mono text-lg mt-1">{currencyFmt.format(detail.cost)}</p>
+            <p className="font-mono text-lg mt-1">
+              {currencyFmt.format(detail.cost_transactions_total)}
+            </p>
+            <CostTransactions rows={detail.cost_transactions} />
           </div>
           <PublicationChecklist
             description={detail.description_fr}
@@ -196,6 +199,39 @@ export default async function EditPage({
         </section>
       </div>
     </main>
+  );
+}
+
+function CostTransactions({
+  rows,
+}: {
+  rows: { description: string; invoice: string; amount: number }[];
+}) {
+  if (rows.length === 0) {
+    return (
+      <p className="mt-1 text-xs text-gray-500">
+        Aucun détail de coûtant trouvé dans SERTI.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-2 border rounded overflow-hidden">
+      <table className="w-full text-xs">
+        <tbody>
+          {rows.map((row, index) => {
+            const description = row.description || row.invoice || "Transaction";
+            return (
+              <tr key={`${description}-${index}`} className="border-t first:border-t-0">
+                <td className="py-1 px-2 text-gray-700">{description}</td>
+                <td className="py-1 px-2 text-right font-mono">
+                  {currencyFmt.format(row.amount)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
