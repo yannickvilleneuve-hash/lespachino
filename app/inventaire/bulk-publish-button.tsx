@@ -8,6 +8,7 @@ const REASON_LABELS: Record<keyof BulkPublishResult["reasons"], string> = {
   no_photos: "aucune photo",
   no_hero: "pas de photo principale",
   not_available: "non disponible SERTI",
+  price_missing: "prix requis pour Meta/Google",
   no_channels: "aucune plateforme choisie",
 };
 

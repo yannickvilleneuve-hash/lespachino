@@ -1,5 +1,5 @@
 import type { PublicListing } from "@/lib/listings/public";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceAmount, publicPriceLabel } from "@/lib/listings/display";
 import { getDealerConfig } from "@/lib/dealer/config";
 
 interface BuildCommercialTruckCsvOptions {
@@ -76,8 +76,8 @@ export function buildCommercialTruckCsv({
       l.category,
       conditionFor(l.category),
       l.km > 0 ? l.km : "",
-      "",
-      PUBLIC_PRICE_LABEL,
+      publicPriceAmount(l.price_cad),
+      publicPriceLabel(l.price_cad),
       "CAD",
       "available",
       detailUrl,

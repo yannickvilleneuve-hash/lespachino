@@ -1,5 +1,5 @@
 import type { PublicListing } from "@/lib/listings/public";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceWithCurrency } from "@/lib/listings/display";
 import { getDealerConfig } from "@/lib/dealer/config";
 
 /**
@@ -76,7 +76,7 @@ export function buildMetaVehicleFeed({
       <value>${km}</value>
       <unit>KM</unit>
     </mileage>
-    <price>${xmlEscape(PUBLIC_PRICE_LABEL)}</price>
+    <price>${xmlEscape(publicPriceWithCurrency(l.price_cad))}</price>
     <state_of_vehicle>${state}</state_of_vehicle>
     <condition>${condition}</condition>
     <availability>available</availability>

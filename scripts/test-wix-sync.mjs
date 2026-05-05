@@ -32,6 +32,23 @@ const WIX_API = "https://www.wixapis.com";
 const PUBLIC_PRICE_LABEL = "prix sur demande";
 const targetUnit = process.argv[2];
 
+function publicPriceCad(priceCad) {
+  return typeof priceCad === "number" && Number.isFinite(priceCad) && priceCad > 0
+    ? priceCad
+    : null;
+}
+
+function publicPriceLabel(priceCad) {
+  const price = publicPriceCad(priceCad);
+  return price === null
+    ? PUBLIC_PRICE_LABEL
+    : new Intl.NumberFormat("fr-CA", {
+      style: "currency",
+      currency: "CAD",
+      maximumFractionDigits: 0,
+    }).format(price);
+}
+
 function publicPhotoUrl(path) {
   return `${NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${path}`;
 }
@@ -98,6 +115,8 @@ async function run() {
     const listing = listingDataRes.data;
 
     // Minimal vehicle meta — on évite jt400 ici, juste ce qu'il faut.
+    const itemPrice = publicPriceCad(listing.price_cad);
+    const itemPriceLabel = publicPriceLabel(listing.price_cad);
     const item = {
       _id: idFromUnit(l.unit),
       title: `Unit ${l.unit}`,
@@ -109,8 +128,8 @@ async function run() {
       category: "",
       km: 0,
       color: "",
-      priceCad: null,
-      priceLabel: PUBLIC_PRICE_LABEL,
+      priceCad: itemPrice,
+      priceLabel: itemPriceLabel,
       descriptionFr: listing.description_fr,
       state: mapState(""),
       heroImage: publicPhotoUrl((photos.find((p) => p.is_hero) ?? photos[0]).storage_path),
@@ -118,7 +137,7 @@ async function run() {
       detailUrl: `${NEXT_PUBLIC_SITE_URL}/vehicule/${encodeURIComponent(l.unit)}`,
       dateAdded: null,
     };
-    console.log(`  save ${l.unit} (${photos.length} photos, ${PUBLIC_PRICE_LABEL})`);
+    console.log(`  save ${l.unit} (${photos.length} photos, ${itemPriceLabel})`);
     await wixSave(item);
   }
 

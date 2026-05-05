@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { publicPhotoUrl } from "@/lib/listings/public";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceLabel } from "@/lib/listings/display";
 import { getDealerConfig } from "@/lib/dealer/config";
 import PrintButton from "./print-button";
 
@@ -49,7 +49,7 @@ export default async function PdfPage({
                 {detail.year} {detail.make} {detail.model}
               </h1>
               <p className="mt-1 font-mono text-2xl font-bold text-red-600">
-                {PUBLIC_PRICE_LABEL}
+                {publicPriceLabel(detail.price_cad)}
               </p>
             </div>
             <div className="text-right text-sm text-gray-700">

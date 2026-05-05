@@ -13,7 +13,7 @@ export interface WixInventoryItem {
   category: string;
   km: number;
   color: string;
-  priceCad: null;
+  priceCad: number | null;
   priceLabel: string;
   descriptionFr: string;
   state: "NEW" | "USED";

@@ -4,13 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import type { PublicListing } from "@/lib/listings/public";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceLabel } from "@/lib/listings/display";
 import { ViewModeSwitcher, useViewMode } from "./view-mode-switcher";
 import { VehiclePlaceholder } from "./vehicle-placeholder";
 
 export type CatalogListing = PublicListing;
 
-type SortKey = "year" | "make" | "model" | "category" | "km";
+type SortKey = "year" | "make" | "model" | "category" | "km" | "price_cad";
 type SortDir = "asc" | "desc";
 
 export default function CatalogViews({ listings }: { listings: CatalogListing[] }) {
@@ -103,7 +103,7 @@ function Grille({ listings }: { listings: CatalogListing[] }) {
               </div>
               <div className="flex items-baseline justify-between mt-2">
                 <span className="text-lg font-bold text-red-600 font-mono">
-                  {PUBLIC_PRICE_LABEL}
+                  {publicPriceLabel(l.price_cad)}
                 </span>
                 <span className="text-[10px] text-gray-400 font-mono">{l.unit}</span>
               </div>
@@ -158,7 +158,7 @@ function Liste({ listings }: { listings: CatalogListing[] }) {
             </div>
             <div className="text-right pr-2">
               <div className="text-lg font-bold text-red-600 font-mono">
-                {PUBLIC_PRICE_LABEL}
+                {publicPriceLabel(l.price_cad)}
               </div>
               <div className="text-[10px] text-gray-400 font-mono">{l.unit}</div>
             </div>
@@ -186,6 +186,7 @@ function Tableau({
     { key: "model", label: "Modèle" },
     { key: "category", label: "Catégorie" },
     { key: "km", label: "Km", align: "right" },
+    { key: "price_cad", label: "Prix", align: "right" },
   ];
   return (
     <div className="overflow-x-auto bg-white border rounded shadow-sm">
@@ -232,6 +233,9 @@ function Tableau({
               <td className="px-3 py-1.5 text-xs text-gray-600">{l.category}</td>
               <td className="px-3 py-1.5 text-right font-mono">
                 {l.km > 0 ? l.km.toLocaleString("fr-CA") : "—"}
+              </td>
+              <td className="px-3 py-1.5 text-right font-mono font-semibold text-red-600">
+                {publicPriceLabel(l.price_cad)}
               </td>
             </tr>
           ))}

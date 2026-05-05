@@ -12,7 +12,7 @@ export const revalidate = 300;
 export async function GET(request: Request) {
   const all = await fetchPublicListings({ channel: "fb_marketplace" });
   const listings = all.filter(
-    (l): l is PublicListing & { hero_url: string } => l.hero_url !== null,
+    (l): l is PublicListing & { hero_url: string } => l.hero_url !== null && l.price_cad > 0,
   );
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   const xml = buildMetaVehicleFeed({ origin, listings });

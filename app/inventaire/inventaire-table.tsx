@@ -193,6 +193,7 @@ const PUBLICATION_ERR_FR: Record<string, string> = {
   no_photos: "Aucune photo",
   no_hero: "Pas de photo principale",
   not_available: "Non disponible SERTI",
+  price_missing: "Prix requis pour Meta/Google",
   no_channels: "Aucune plateforme choisie",
 };
 

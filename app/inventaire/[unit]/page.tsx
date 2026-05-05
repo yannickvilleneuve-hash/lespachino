@@ -28,15 +28,15 @@ function getChannelAvailability(): ChannelAvailability {
       ? { ready: true, reason: "Site Hino / Wix connecté" }
       : { ready: false, reason: "Connexion Wix manquante" },
     fb_marketplace: {
-      ready: false,
-      reason: "Incompatible: Meta exige un prix numérique public",
+      ready: true,
+      reason: "Feed Meta prêt; prix public requis",
     },
     fb_page: isPagePostReady()
       ? { ready: true, reason: "Page Facebook connectée" }
       : { ready: false, reason: "Page Facebook non configurée" },
     google_vla: {
-      ready: false,
-      reason: "Incompatible: Google Vehicle Ads exige un prix numérique public",
+      ready: true,
+      reason: "Feed Google prêt; prix public requis",
     },
     lespac: isLespacReady()
       ? { ready: true, reason: "API Lespac connectée" }

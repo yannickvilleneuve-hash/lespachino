@@ -30,6 +30,7 @@ const PUBLICATION_ERROR_MSG: Record<PublicationError, string> = {
   no_photos: "Il faut au moins une photo avant de publier.",
   no_hero: "Il faut désigner une photo principale.",
   not_available: "SERTI indique que ce véhicule n'est pas disponible à la vente.",
+  price_missing: "Meta et Google exigent un prix public avant de publier.",
   no_channels: "Choisis au moins une plateforme, ou utilise le bouton Publier dans la ligne voulue.",
 };
 
@@ -299,7 +300,7 @@ export default function ListingForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div id="prix" className="scroll-mt-24">
-        <label className="block text-sm font-medium mb-1">Prix interne CAD</label>
+        <label className="block text-sm font-medium mb-1">Prix public CAD</label>
         <input
           type="number"
           step="0.01"

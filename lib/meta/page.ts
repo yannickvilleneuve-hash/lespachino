@@ -1,4 +1,4 @@
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceLabel } from "@/lib/listings/display";
 
 /**
  * Meta Page Posts — publication automatique sur la Page FB Centre du Camion Hino.
@@ -30,6 +30,7 @@ export interface VehiclePostPayload {
   model: string;
   category: string;
   km: number;
+  price_cad: number;
   hero_url: string | null;
   description_fr: string;
   detail_url: string;
@@ -37,7 +38,7 @@ export interface VehiclePostPayload {
 
 function buildCaption(v: VehiclePostPayload): string {
   const title = `${v.year} ${v.make} ${v.model}`.trim();
-  const lines = [`${title} — ${PUBLIC_PRICE_LABEL}`, "", v.category];
+  const lines = [`${title} — ${publicPriceLabel(v.price_cad)}`, "", v.category];
   if (v.km > 0) lines.push(`${v.km.toLocaleString("fr-CA")} km`);
   if (v.description_fr) lines.push("", v.description_fr);
   lines.push("", "👉 " + v.detail_url);

@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceCad, publicPriceLabel } from "@/lib/listings/display";
 import { publicPhotoUrl } from "@/lib/listings/public";
 import { normalizeChannels } from "@/lib/listings/schema";
 import { publicMileageKm } from "@/lib/listings/mileage";
@@ -63,8 +63,8 @@ export async function syncOneToWix(unit: string, shouldPublish: boolean): Promis
         category: detail.category,
         km: publicMileageKm(detail),
         color: detail.color,
-        priceCad: null,
-        priceLabel: PUBLIC_PRICE_LABEL,
+        priceCad: publicPriceCad(detail.price_cad),
+        priceLabel: publicPriceLabel(detail.price_cad),
         descriptionFr: detail.description_fr,
         state: mapState(detail.category),
         heroImage: publicPhotoUrl(heroPhoto.storage_path, "medium"),

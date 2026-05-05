@@ -2,7 +2,7 @@ import { getLespacConfig } from "./config";
 import type { LespacListing, LespacState } from "./types";
 import type { InventoryDetail } from "@/lib/listings/queries";
 import type { PhotoWithUrl } from "@/lib/listings/photos";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { PUBLIC_PRICE_LABEL, publicPriceCad } from "@/lib/listings/display";
 
 /** Valeurs autorisées pour attribut "Marque" chez Lespac (Véhicules - Camions). */
 const LESPAC_MARQUES_LOURDS = new Set([
@@ -68,6 +68,7 @@ export function mapToLespacListing({ detail, photos, publicListingUrl }: Mapping
   const { make, type: truckType } = normalizeMake(detail.make);
   const state = mapState(detail.category);
   const category = mapCategory(detail.category);
+  const priceCad = publicPriceCad(detail.price_cad);
 
   const attributes: Record<string, string> = {
     "Type de camion": category === "Véhicules - Camions" ? truckType : "Autres / N/A",
@@ -85,8 +86,8 @@ export function mapToLespacListing({ detail, photos, publicListingUrl }: Mapping
     category,
     title: buildTitle(detail),
     description: detail.description_fr || undefined,
-    price: null,
-    priceNote: PUBLIC_PRICE_LABEL,
+    price: priceCad,
+    priceNote: priceCad === null ? PUBLIC_PRICE_LABEL : null,
     videoURL: null,
     postalCode: cfg.dealer.postalCode,
     year: detail.year > 0 ? detail.year : null,

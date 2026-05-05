@@ -10,7 +10,11 @@ import {
   type Channel,
   type ListingFormInput,
 } from "./schema";
-import { validatePublication, type PublicationError } from "./publication";
+import { hasPublicPrice } from "@/lib/listings/display";
+import {
+  validatePublicationForChannels,
+  type PublicationError,
+} from "./publication";
 import { generateVariants, maskLikelyPlate, variantPath } from "@/lib/photos/resize";
 import { removeBackgroundWithRemoveBg } from "@/lib/photos/background-removal";
 import { logActivity } from "@/lib/audit/log";
@@ -175,12 +179,15 @@ export async function togglePublished(
     selectedChannels = normalizeChannels(listingRes.data?.channels, []);
     if (selectedChannels.length === 0) return { ok: false, error: "no_channels" };
 
-    const err = validatePublication({
-      price_cad: listingRes.data?.price_cad ?? 0,
-      description_fr: listingRes.data?.description_fr ?? "",
-      photos: photosRes.data,
-      available: Boolean(vehicle?.available && vehicle.status === "available"),
-    });
+    const err = validatePublicationForChannels(
+      {
+        price_cad: listingRes.data?.price_cad ?? 0,
+        description_fr: listingRes.data?.description_fr ?? "",
+        photos: photosRes.data,
+        available: Boolean(vehicle?.available && vehicle.status === "available"),
+      },
+      selectedChannels,
+    );
     if (err) return { ok: false, error: err };
   } else {
     const listingRes = await supabase
@@ -253,12 +260,15 @@ export async function setListingChannelPublished(
       getVehicleByUnit(unit),
     ]);
     if (photosRes.error) throw new Error(`photos fetch: ${photosRes.error.message}`);
-    const err = validatePublication({
-      price_cad: parsed.price_cad,
-      description_fr: parsed.description_fr,
-      photos: photosRes.data,
-      available: Boolean(vehicle?.available && vehicle.status === "available"),
-    });
+    const err = validatePublicationForChannels(
+      {
+        price_cad: parsed.price_cad,
+        description_fr: parsed.description_fr,
+        photos: photosRes.data,
+        available: Boolean(vehicle?.available && vehicle.status === "available"),
+      },
+      nextChannels,
+    );
     if (err) return { ok: false, error: err };
   }
 
@@ -459,12 +469,25 @@ async function autoSyncChannels(
     }
 
     if (channel === "fb_marketplace") {
-      await recordSkipped(
-        supabase,
+      if (shouldPublish) {
+        const detail = await fetchPublicListingByUnit(unit, { channel });
+        if (!detail) {
+          await recordSkipped(supabase, unit, channel, "listing introuvable");
+          continue;
+        }
+        if (!hasPublicPrice(detail.price_cad)) {
+          await recordSkipped(supabase, unit, channel, "Prix public requis");
+          continue;
+        }
+      }
+      await recordChannelState(supabase, {
         unit,
         channel,
-        "Désactivé: Meta Marketplace exige un prix numérique public.",
-      );
+        status: shouldPublish ? "feed_ready" : "unpublished",
+        external_url: shouldPublish
+          ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/feed/facebook.csv`
+          : null,
+      });
       continue;
     }
 
@@ -493,6 +516,7 @@ async function autoSyncChannels(
                 model: detail.model,
                 category: detail.category,
                 km: detail.km,
+                price_cad: detail.price_cad,
                 hero_url: detail.hero_url,
                 description_fr: detail.description_fr,
                 detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,
@@ -533,12 +557,25 @@ async function autoSyncChannels(
     }
 
     if (channel === "google_vla") {
-      await recordSkipped(
-        supabase,
+      if (shouldPublish) {
+        const detail = await fetchPublicListingByUnit(unit, { channel });
+        if (!detail) {
+          await recordSkipped(supabase, unit, channel, "listing introuvable");
+          continue;
+        }
+        if (!hasPublicPrice(detail.price_cad)) {
+          await recordSkipped(supabase, unit, channel, "Prix public requis");
+          continue;
+        }
+      }
+      await recordChannelState(supabase, {
         unit,
         channel,
-        "Désactivé: Google Vehicle Ads exige un prix numérique public.",
-      );
+        status: shouldPublish ? "feed_ready" : "unpublished",
+        external_url: shouldPublish
+          ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/feed/vehicles.xml`
+          : null,
+      });
       continue;
     }
 
@@ -630,6 +667,7 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
     no_photos: 0,
     no_hero: 0,
     not_available: 0,
+    price_missing: 0,
     no_channels: 0,
   };
 
@@ -648,12 +686,15 @@ export async function bulkPublishReady(): Promise<BulkPublishResult> {
       skipped += 1;
       continue;
     }
-    const err = validatePublication({
-      price_cad: l.price_cad,
-      description_fr: l.description_fr,
-      photos: photosByUnit.get(l.unit) ?? [],
-      available: availableUnits.has(l.unit),
-    });
+    const err = validatePublicationForChannels(
+      {
+        price_cad: l.price_cad,
+        description_fr: l.description_fr,
+        photos: photosByUnit.get(l.unit) ?? [],
+        available: availableUnits.has(l.unit),
+      },
+      channels,
+    );
     if (err) {
       reasons[err] += 1;
       skipped += 1;

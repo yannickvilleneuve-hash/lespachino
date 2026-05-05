@@ -1,5 +1,5 @@
 import type { PublicListing } from "@/lib/listings/public";
-import { PUBLIC_PRICE_LABEL } from "@/lib/listings/display";
+import { publicPriceWithCurrency } from "@/lib/listings/display";
 import { getDealerConfig } from "@/lib/dealer/config";
 
 /**
@@ -75,7 +75,7 @@ export function buildGoogleVlaFeed({
       <g:value>${Math.max(0, Math.round(l.km))}</g:value>
       <g:unit>KM</g:unit>
     </g:mileage>
-    <g:price>${xmlEscape(PUBLIC_PRICE_LABEL)}</g:price>
+    <g:price>${xmlEscape(publicPriceWithCurrency(l.price_cad))}</g:price>
     <g:state_of_vehicle>${state}</g:state_of_vehicle>
     <g:condition>${condition}</g:condition>
     <g:availability>in stock</g:availability>

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { validatePublication } from "@/lib/listings/publication";
+import {
+  validatePublication,
+  validatePublicationForChannels,
+} from "@/lib/listings/publication";
 
 describe("validatePublication", () => {
   const valid = {
@@ -12,9 +15,19 @@ describe("validatePublication", () => {
     expect(validatePublication(valid)).toBeNull();
   });
 
-  it("accepte prix absent parce que le public voit appeler pour le prix", () => {
+  it("accepte prix absent pour les plateformes qui ne l'exigent pas", () => {
     expect(validatePublication({ ...valid, price_cad: 0 })).toBeNull();
     expect(validatePublication({ ...valid, price_cad: -1 })).toBeNull();
+  });
+
+  it("refuse prix absent quand Meta ou Google sont sélectionnés", () => {
+    expect(validatePublicationForChannels({ ...valid, price_cad: 0 }, ["fb_marketplace"])).toBe(
+      "price_missing",
+    );
+    expect(validatePublicationForChannels({ ...valid, price_cad: 0 }, ["google_vla"])).toBe(
+      "price_missing",
+    );
+    expect(validatePublicationForChannels({ ...valid, price_cad: 0 }, ["native"])).toBeNull();
   });
 
   it("refuse description vide / blanche", () => {
