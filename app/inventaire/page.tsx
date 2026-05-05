@@ -31,6 +31,9 @@ export default async function InventairePage() {
             <BulkPublishButton />
             {wixReady && <SyncWixButton />}
             {lespacReady && <SyncLespacButton />}
+            <Link href="/inventaire/sandhills" className="text-xs text-white/70 hover:text-white">
+              Sandhills
+            </Link>
             <Link href="/inventaire/leads" className="text-xs text-white/70 hover:text-white">
               Leads
             </Link>
