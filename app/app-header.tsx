@@ -11,19 +11,27 @@ export default function AppHeader({
   logoHref?: string;
 }) {
   return (
-    <header className="flex items-center gap-3 px-4 py-2 bg-slate-900 text-white">
-      <Link href={logoHref} className="flex items-center gap-3">
-        <Image
-          src="/logo1.jpg"
-          alt="Centre du camion Hino"
-          width={78}
-          height={32}
-          priority
-          className="rounded-sm"
-        />
-      </Link>
-      <h1 className="text-sm font-semibold tracking-wide uppercase">{title}</h1>
-      {right && <div className="ml-auto flex items-center gap-3">{right}</div>}
+    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950 text-white">
+      <div className="flex min-h-12 items-center gap-3 px-4 py-2">
+        <Link href={logoHref} className="flex shrink-0 items-center gap-3">
+          <Image
+            src="/logo1.jpg"
+            alt="Centre du camion Hino"
+            width={78}
+            height={32}
+            priority
+            className="rounded-sm"
+          />
+        </Link>
+        <h1 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wide">
+          {title}
+        </h1>
+        {right && (
+          <div className="ml-auto flex shrink-0 items-center gap-3 text-xs">
+            {right}
+          </div>
+        )}
+      </div>
     </header>
   );
 }

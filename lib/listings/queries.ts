@@ -16,6 +16,7 @@ type ChannelStateRow = Database["public"]["Tables"]["listing_channel_state"]["Ro
 
 export interface InventoryRow extends Vehicle {
   price_cad: number;
+  description_fr: string;
   is_published: boolean;
   channels: string[];
   photo_count: number;
@@ -62,7 +63,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
   const [listingsRes, photosRes, viewsRes, leadsRes, channelStateRes] = await Promise.all([
     supabase
       .from("listing")
-      .select("unit, price_cad, is_published, channels, hidden, walkaround_video_url")
+      .select("unit, price_cad, description_fr, is_published, channels, hidden, walkaround_video_url")
       .in("unit", units),
     supabase
       .from("vehicle_photo")
@@ -132,6 +133,7 @@ export async function fetchInventory(): Promise<InventoryRow[]> {
     return {
       ...v,
       price_cad: l?.price_cad ?? 0,
+      description_fr: l?.description_fr ?? "",
       is_published: l?.is_published ?? false,
       channels: l ? normalizeChannels(l.channels, []) : [],
       photo_count: photos?.count ?? 0,

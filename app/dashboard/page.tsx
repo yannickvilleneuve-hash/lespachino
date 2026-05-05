@@ -132,11 +132,25 @@ export default async function DashboardPage() {
             <p className="text-xs text-gray-600">Jobs par canal, erreurs et relances.</p>
           </Link>
           <Link
+            href="/dashboard/destinations"
+            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
+          >
+            <h3 className="font-semibold mb-1">Destinations →</h3>
+            <p className="text-xs text-gray-600">Vue unique de ce qui est publié par plateforme.</p>
+          </Link>
+          <Link
             href="/dashboard/meta"
             className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
           >
             <h3 className="font-semibold mb-1">Meta →</h3>
             <p className="text-xs text-gray-600">Catalogue, feed Facebook et erreurs d&apos;import.</p>
+          </Link>
+          <Link
+            href="/dashboard/google"
+            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
+          >
+            <h3 className="font-semibold mb-1">Google →</h3>
+            <p className="text-xs text-gray-600">Feed Vehicle Ads, véhicules prêts et import forcé.</p>
           </Link>
           <Link
             href="/dashboard/stats"

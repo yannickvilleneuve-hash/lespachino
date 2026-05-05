@@ -25,34 +25,8 @@ export default async function InventairePage() {
             <span className="text-xs text-white/70">
               {rows.length} véhicule{rows.length > 1 ? "s" : ""} actif{rows.length > 1 ? "s" : ""}
             </span>
-            <Link href="/inventaire/scan-vin" className="text-xs text-white/70 hover:text-white">
-              Scanner VIN
-            </Link>
-            <BulkPublishButton />
-            {wixReady && <SyncWixButton />}
-            {lespacReady && <SyncLespacButton />}
-            <Link href="/inventaire/sandhills" className="text-xs text-white/70 hover:text-white">
-              Sandhills
-            </Link>
-            <Link href="/dashboard/meta" className="text-xs text-white/70 hover:text-white">
-              Meta
-            </Link>
-            <Link href="/inventaire/leads" className="text-xs text-white/70 hover:text-white">
-              Leads
-            </Link>
-            {lespacReady && (
-              <Link
-                href="/inventaire/import-lespac"
-                className="text-xs text-white/70 hover:text-white"
-              >
-                Import Lespac
-              </Link>
-            )}
             <Link href="/dashboard" className="text-xs text-white/70 hover:text-white">
               Dashboard
-            </Link>
-            <Link href="/dashboard/demand" className="text-xs text-white/70 hover:text-white">
-              Demande
             </Link>
             <form action="/auth/signout" method="post">
               <button type="submit" className="text-xs text-white/70 hover:text-white">
@@ -62,7 +36,31 @@ export default async function InventairePage() {
           </>
         }
       />
+      <div className="flex flex-wrap items-center gap-2 border-b bg-white px-6 py-2">
+        <ActionLink href="/inventaire/scan-vin">Scanner VIN</ActionLink>
+        <BulkPublishButton />
+        {wixReady && <SyncWixButton />}
+        {lespacReady && <SyncLespacButton />}
+        <ActionLink href="/dashboard/meta">Meta</ActionLink>
+        <ActionLink href="/dashboard/google">Google</ActionLink>
+        <ActionLink href="/dashboard/destinations">Destinations</ActionLink>
+        <ActionLink href="/inventaire/sandhills">Sandhills</ActionLink>
+        <ActionLink href="/inventaire/leads">Leads</ActionLink>
+        {lespacReady && <ActionLink href="/inventaire/import-lespac">Import Lespac</ActionLink>}
+        <ActionLink href="/dashboard/demand">Demande</ActionLink>
+      </div>
       <InventaireTable rows={rows} alerts={alerts} />
     </main>
+  );
+}
+
+function ActionLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="rounded border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-800"
+    >
+      {children}
+    </Link>
   );
 }

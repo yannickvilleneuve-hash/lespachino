@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppHeader from "@/app/app-header";
 import { fetchMetaDiagnostics, type MetaUploadIssue } from "@/lib/meta/diagnostics";
+import MetaActions from "./meta-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,10 @@ export default async function MetaDashboardPage() {
                   diagnostics.eligibility.facebook_feed_ready_count > 0 ? "success" : "warn"
                 }
               />
+            </section>
+
+            <section className="rounded border bg-white p-4">
+              <MetaActions canImport={diagnostics.eligibility.facebook_feed_ready_count > 0} />
             </section>
 
             <section className="rounded border bg-white p-5">
@@ -153,6 +158,13 @@ export default async function MetaDashboardPage() {
                   value={String(diagnostics.eligibility.facebook_feed_ready_count)}
                   tone={
                     diagnostics.eligibility.facebook_feed_ready_count > 0 ? "good" : "warn"
+                  }
+                />
+                <Pair
+                  label="Prêts à ajouter"
+                  value={String(diagnostics.eligibility.facebook_ready_available_count)}
+                  tone={
+                    diagnostics.eligibility.facebook_ready_available_count > 0 ? "good" : "warn"
                   }
                 />
                 <Pair

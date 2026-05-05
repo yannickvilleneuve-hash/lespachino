@@ -35,7 +35,7 @@ export default function BulkPublishButton() {
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="text-xs text-white/70 hover:text-white disabled:opacity-40"
+        className="rounded border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-800 disabled:opacity-40"
         title="Publie tous les véhicules prêts (description et photo principale)"
       >
         {pending ? "Publication…" : "Publier prêts"}

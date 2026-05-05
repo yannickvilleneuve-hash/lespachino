@@ -63,8 +63,17 @@ export interface MetaFeedEligibility {
   native_count: number;
   facebook_selected_count: number;
   facebook_feed_ready_count: number;
+  facebook_ready_available_count: number;
   selected_missing_price: string[];
   selected_missing_photo: string[];
+}
+
+export interface MetaImportAlert {
+  error_count: number;
+  warning_count: number;
+  end_time?: string;
+  summary: string;
+  description?: string;
 }
 
 export type MetaDiagnostics =
@@ -125,6 +134,7 @@ async function fetchEligibility(): Promise<MetaFeedEligibility> {
     native_count: nativeListings.length,
     facebook_selected_count: facebookListings.length,
     facebook_feed_ready_count: facebookListings.filter(hasHeroAndPrice).length,
+    facebook_ready_available_count: nativeListings.filter(hasHeroAndPrice).length,
     selected_missing_price: facebookListings
       .filter((l) => l.price_cad <= 0)
       .map((l) => l.unit),
@@ -185,5 +195,36 @@ export async function fetchMetaDiagnostics(): Promise<MetaDiagnostics> {
       missing: [],
       error: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+export async function fetchMetaImportAlert(): Promise<MetaImportAlert | null> {
+  const { accessToken, feedId } = metaConfig();
+  if (!accessToken || !feedId) return null;
+  try {
+    const feed = await graphGet<MetaFeedSnapshot>(
+      accessToken,
+      feedId,
+      "id,latest_upload",
+    );
+    const latestUploadId = feed.latest_upload?.id;
+    if (!latestUploadId) return null;
+    const latestUpload = await graphGet<MetaUploadSnapshot>(
+      accessToken,
+      latestUploadId,
+      "id,end_time,error_count,warning_count,errors,warnings",
+    );
+    const errorCount = latestUpload.error_count ?? 0;
+    if (errorCount <= 0) return null;
+    const firstError = latestUpload.errors?.data?.[0];
+    return {
+      error_count: errorCount,
+      warning_count: latestUpload.warning_count ?? 0,
+      end_time: latestUpload.end_time,
+      summary: firstError?.summary ?? "Dernier import Meta en erreur",
+      description: firstError?.description,
+    };
+  } catch {
+    return null;
   }
 }

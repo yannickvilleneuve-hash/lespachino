@@ -33,7 +33,8 @@ type SortKey =
   | "views_7d"
   | "leads_7d"
   | "status"
-  | "channels_live";
+  | "channels_live"
+  | "meta_ready";
 type SortDir = "asc" | "desc";
 
 type StatusFilter = "all" | "available" | "quoted" | "sold";
@@ -173,6 +174,13 @@ const COLUMNS: ColumnDef[] = [
     value: (r) => r.channel_state.length,
   },
   {
+    key: "meta_ready",
+    label: "Meta",
+    align: "center",
+    render: (r) => <MetaReadyBadge row={r} />,
+    value: (r) => metaRank(r),
+  },
+  {
     key: "is_published",
     label: "Publié",
     align: "center",
@@ -214,6 +222,7 @@ const DEFAULT_DIR: Record<SortKey, SortDir> = {
   leads_7d: "desc",
   status: "asc",
   channels_live: "desc",
+  meta_ready: "asc",
 };
 
 function compareValues(a: string | number | boolean | null, b: string | number | boolean | null) {
@@ -225,7 +234,32 @@ function compareValues(a: string | number | boolean | null, b: string | number |
   return String(a).localeCompare(String(b), "fr", { numeric: true, sensitivity: "base" });
 }
 
-type AttentionFilter = null | "no_photo";
+type AttentionFilter = null | "no_photo" | "meta_ready" | "meta_missing";
+
+function isMetaSelected(row: InventoryRow): boolean {
+  return row.channels.includes("fb_marketplace");
+}
+
+function isMetaReady(row: InventoryRow): boolean {
+  return (
+    !row.hidden &&
+    row.status === "available" &&
+    row.description_fr.trim().length > 0 &&
+    row.price_cad > 0 &&
+    row.photo_count > 0 &&
+    row.has_hero
+  );
+}
+
+function isMetaInFeed(row: InventoryRow): boolean {
+  return row.is_published && isMetaSelected(row) && isMetaReady(row);
+}
+
+function metaRank(row: InventoryRow): number {
+  if (isMetaInFeed(row)) return 0;
+  if (isMetaReady(row)) return 1;
+  return 2;
+}
 
 export default function InventaireTable({
   rows,
@@ -249,6 +283,14 @@ export default function InventaireTable({
 
   const noPhotoCount = useMemo(
     () => rows.filter((r) => !r.hidden && r.photo_count === 0).length,
+    [rows],
+  );
+  const metaReadyCount = useMemo(
+    () => rows.filter((r) => isMetaReady(r) && !isMetaSelected(r)).length,
+    [rows],
+  );
+  const metaInFeedCount = useMemo(
+    () => rows.filter((r) => isMetaInFeed(r)).length,
     [rows],
   );
   const categories = useMemo(
@@ -277,6 +319,8 @@ export default function InventaireTable({
       if (publishedOnly && !r.is_published) return false;
       if (category && r.category !== category) return false;
       if (attention === "no_photo" && r.photo_count > 0) return false;
+      if (attention === "meta_ready" && !(isMetaReady(r) && !isMetaSelected(r))) return false;
+      if (attention === "meta_missing" && isMetaReady(r)) return false;
       if (!q) return true;
       return (
         r.vin.toLowerCase().includes(q) ||
@@ -354,6 +398,9 @@ export default function InventaireTable({
         leadsRecent={alerts.leadsRecent}
         syncErrorsRecent={alerts.syncErrorsRecent}
         noPhotoCount={noPhotoCount}
+        metaReadyCount={metaReadyCount}
+        metaInFeedCount={metaInFeedCount}
+        metaImport={alerts.metaImport}
         attention={attention}
         onAttention={setAttention}
       />
@@ -662,6 +709,42 @@ function PublishToggle({
   );
 }
 
+function metaMissingParts(row: InventoryRow): string[] {
+  const missing: string[] = [];
+  if (row.status !== "available") missing.push("non disponible");
+  if (row.description_fr.trim().length === 0) missing.push("description");
+  if (row.price_cad <= 0) missing.push("prix");
+  if (row.photo_count === 0) missing.push("photos");
+  else if (!row.has_hero) missing.push("photo principale");
+  return missing;
+}
+
+function MetaReadyBadge({ row }: { row: InventoryRow }) {
+  if (isMetaInFeed(row)) {
+    return (
+      <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+        Dans feed
+      </span>
+    );
+  }
+  if (isMetaReady(row)) {
+    return (
+      <span className="inline-block rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+        Prêt
+      </span>
+    );
+  }
+  const missing = metaMissingParts(row);
+  return (
+    <span
+      className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+      title={missing.join(", ")}
+    >
+      À compléter
+    </span>
+  );
+}
+
 function AdminGrille({
   rows,
   onHide,
@@ -898,16 +981,23 @@ function AttentionBanner({
   leadsRecent,
   syncErrorsRecent,
   noPhotoCount,
+  metaReadyCount,
+  metaInFeedCount,
+  metaImport,
   attention,
   onAttention,
 }: {
   leadsRecent: number;
   syncErrorsRecent: number;
   noPhotoCount: number;
+  metaReadyCount: number;
+  metaInFeedCount: number;
+  metaImport: InventoryAlerts["metaImport"];
   attention: AttentionFilter;
   onAttention: (a: AttentionFilter) => void;
 }) {
-  const totalAttention = leadsRecent + syncErrorsRecent + noPhotoCount;
+  const totalAttention =
+    leadsRecent + syncErrorsRecent + noPhotoCount + metaReadyCount + (metaImport ? 1 : 0);
   if (totalAttention === 0) return null;
   return (
     <div className="px-6 py-3 bg-blue-50 border-b border-blue-100 flex flex-wrap gap-2 items-center">
@@ -931,6 +1021,40 @@ function AttentionBanner({
           <span className="font-semibold text-red-700">{syncErrorsRecent}</span>
           <span className="text-gray-700">erreur{syncErrorsRecent > 1 ? "s" : ""} sync 24h</span>
         </Link>
+      )}
+      {metaImport && (
+        <Link
+          href="/dashboard/meta"
+          className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1 text-xs transition hover:border-red-300 hover:bg-red-100"
+          title={metaImport.description}
+        >
+          <span className="font-semibold text-red-700">Meta</span>
+          <span className="text-gray-700">{metaImport.summary}</span>
+        </Link>
+      )}
+      {metaInFeedCount > 0 && (
+        <Link
+          href="/dashboard/meta"
+          className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-white px-3 py-1 text-xs transition hover:border-green-300 hover:bg-green-100"
+        >
+          <span className="font-semibold text-green-700">{metaInFeedCount}</span>
+          <span className="text-gray-700">dans Meta</span>
+        </Link>
+      )}
+      {metaReadyCount > 0 && (
+        <button
+          type="button"
+          onClick={() => onAttention(attention === "meta_ready" ? null : "meta_ready")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition " +
+            (attention === "meta_ready"
+              ? "border-blue-400 bg-blue-200 text-blue-900"
+              : "border-blue-200 bg-white hover:bg-blue-100")
+          }
+        >
+          <span className="font-semibold text-blue-800">{metaReadyCount}</span>
+          <span className="text-gray-700">prêt Meta</span>
+        </button>
       )}
       {noPhotoCount > 0 && (
         <button
