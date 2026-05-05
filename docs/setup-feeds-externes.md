@@ -8,6 +8,7 @@ URLs publiques actuelles (via Tailscale Funnel):
 | Google VLA (canonical) | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/vehicles.xml` | Google Merchant Center, agrégateurs |
 | Facebook Marketplace XML | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/facebook.xml` | Meta Commerce Manager (même contenu que vehicles.xml) |
 | Facebook Marketplace CSV | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/facebook.csv` | Fallback si CSV seulement accepté |
+| Sandhills CSV | `https://feeds.hinochicoutimi.com/feed/sandhills.csv` | Import planifié Sandhills / MarketBook / TruckPaper |
 
 Quand le domaine `camion-hino.ca` sera DNS-configurable, ces URLs changeront
 pour `https://camion-hino.ca/feed/*`. Mets à jour NEXT_PUBLIC_SITE_URL +
@@ -115,3 +116,20 @@ Quand `camion-hino.ca` DNS sera débloquée (accès GoDaddy obtenu):
 4. Idem Google Merchant Center → Feeds → Settings → URL
 
 Les feeds regénéreront avec nouvelles URLs `/vehicule/[unit]`.
+
+---
+
+## 5. Sandhills / MarketBook / TruckPaper
+
+Le portail `https://vip.marketbook.ca/import` est protégé par Cloudflare. Pour
+automatiser proprement, il faut demander à Sandhills de tirer notre feed public
+sur horaire plutôt que d'automatiser le portail.
+
+URL à fournir:
+
+```text
+https://feeds.hinochicoutimi.com/feed/sandhills.csv
+```
+
+Voir [sandhills-automation.md](./sandhills-automation.md) pour le message à
+envoyer au représentant Sandhills et les alternatives SFTP/API si nécessaires.
