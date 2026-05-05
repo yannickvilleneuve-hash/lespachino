@@ -53,8 +53,8 @@ const CHANNEL_DESCRIPTIONS: Record<Channel, string> = {
   google_vla: "Feed Google Vehicle Ads",
   lespac: "Annonce publiée via l'API LesPAC",
   kijiji: "Connecteur Kijiji",
-  truckpaper: "Feed CSV TruckPaper",
-  marketbook: "Feed CSV MarketBook",
+  truckpaper: "Envoi automatique vers TruckPaper",
+  marketbook: "Envoi automatique vers MarketBook",
 };
 
 const SYNC_DONE_STATUSES = new Set([
@@ -892,10 +892,12 @@ function platformStatus({
   }
   if (rawStatus && SYNC_DONE_STATUSES.has(rawStatus)) {
     return {
-      label: rawStatus === "feed_ready" ? "Feed prêt" : "Fait",
-      detail: state?.last_synced_at
-        ? `Dernière mise à jour: ${new Date(state.last_synced_at).toLocaleString("fr-CA")}`
-        : "Synchronisé.",
+      label: rawStatus === "feed_ready" ? "En attente plateforme" : "Fait",
+      detail: rawStatus === "feed_ready"
+        ? "Rien à faire ici. Cette annonce est dans le fichier que la plateforme récupère."
+        : state?.last_synced_at
+          ? `Dernière mise à jour: ${new Date(state.last_synced_at).toLocaleString("fr-CA")}`
+          : "Synchronisé.",
       tone: "done",
     };
   }

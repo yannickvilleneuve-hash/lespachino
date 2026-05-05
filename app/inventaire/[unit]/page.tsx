@@ -42,8 +42,8 @@ function getChannelAvailability(): ChannelAvailability {
       ? { ready: true, reason: "API Lespac connectée" }
       : { ready: false, reason: "API Lespac non configurée" },
     kijiji: { ready: false, reason: "Connecteur Kijiji à faire" },
-    truckpaper: { ready: true, reason: "Feed CSV prêt" },
-    marketbook: { ready: true, reason: "Feed CSV prêt" },
+    truckpaper: { ready: true, reason: "Envoi automatique disponible" },
+    marketbook: { ready: true, reason: "Envoi automatique disponible" },
   };
 }
 
