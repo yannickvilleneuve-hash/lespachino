@@ -1,3 +1,5 @@
+import type { BrowserContext } from "playwright";
+
 /**
  * Shared contract for the LesPAC mirror bot.
  *
@@ -46,4 +48,37 @@ export interface Job {
   lespacId: string;
   listing: MirrorListing | null;
   externalId: string | null;
+}
+
+/** Login/challenge/redirect detected — pause platform, alert, re-auth needed. */
+export class SessionExpiredError extends Error {
+  constructor(message = "session expired") {
+    super(message);
+    this.name = "SessionExpiredError";
+  }
+}
+
+/** Timeout/network/recoverable — return job to pending, retry next cycle. */
+export class TransientError extends Error {
+  constructor(message = "transient failure") {
+    super(message);
+    this.name = "TransientError";
+  }
+}
+
+/** Page changed / known element missing — mark failed, alert with screenshot. */
+export class FatalError extends Error {
+  constructor(message = "fatal failure") {
+    super(message);
+    this.name = "FatalError";
+  }
+}
+
+export interface PlatformDriver {
+  platform: Platform;
+  /** Cheap "am I logged in?" — never throws SessionExpiredError, returns bool. */
+  checkSession(ctx: BrowserContext): Promise<boolean>;
+  publish(ctx: BrowserContext, listing: MirrorListing): Promise<PublishResult>;
+  update(ctx: BrowserContext, externalId: string, listing: MirrorListing): Promise<void>;
+  remove(ctx: BrowserContext, externalId: string): Promise<void>;
 }
