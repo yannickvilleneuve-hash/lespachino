@@ -56,7 +56,17 @@ export async function runWithSession<T>(
   const browser = await chromium.launch({ headless: true });
   let ctx: BrowserContext | undefined;
   try {
-    ctx = await browser.newContext({ storageState });
+    // Guard against missing session file (normal state before `bot:login` has run).
+    let storageStateArg: string | undefined;
+    try {
+      await fs.access(storageState);
+      storageStateArg = storageState;
+    } catch {
+      storageStateArg = undefined; // first run — no saved session yet
+    }
+    ctx = await browser.newContext(
+      storageStateArg ? { storageState: storageStateArg } : {},
+    );
     const result = await fn(ctx);
     await ctx.storageState({ path: storageState });
     return result;

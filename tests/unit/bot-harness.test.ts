@@ -10,6 +10,23 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 // ---------------------------------------------------------------------------
+// Mock node:fs promises so we can control fs.access per-test.
+// Only stub `access` and `mkdir` — keep `mkdtemp`/`writeFile` real so that
+// downloadPhotos tests can verify files are actually written to disk.
+// ---------------------------------------------------------------------------
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      access: vi.fn().mockResolvedValue(undefined), // default: file exists; override per test
+      mkdir: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+});
+
+// ---------------------------------------------------------------------------
 // Mock playwright BEFORE importing harness.
 // Use vi.hoisted() so variables are available when vi.mock factory runs.
 // ---------------------------------------------------------------------------
@@ -46,6 +63,7 @@ import {
 } from "@/lib/bot/harness";
 import type { Platform } from "@/lib/bot/types";
 import { TransientError } from "@/lib/bot/types";
+import { promises as fsMock } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -104,8 +122,8 @@ describe("pace", () => {
       const t0 = Date.now();
       await pace();
       const elapsed = Date.now() - t0;
-      // Should not be negative and should not exceed max + a 50ms tolerance
-      expect(elapsed).toBeGreaterThanOrEqual(0);
+      // Should be at least the configured min (5 ms) and not exceed max + 50ms tolerance
+      expect(elapsed).toBeGreaterThanOrEqual(5);
       expect(elapsed).toBeLessThan(60);
     } finally {
       delete process.env.BOT_PACE_MIN_MS;
@@ -197,6 +215,11 @@ describe("downloadPhotos", () => {
 // runWithSession — success path
 // ---------------------------------------------------------------------------
 describe("runWithSession — success path", () => {
+  beforeEach(() => {
+    // Simulate session file exists so storageState is loaded from disk
+    vi.mocked(fsMock.access).mockResolvedValue(undefined);
+  });
+
   it("calls fn with the browser context and returns its resolved value", async () => {
     const fn = vi.fn().mockResolvedValue("result-value");
     const result = await runWithSession("facebook", fn);
@@ -275,5 +298,40 @@ describe("runWithSession — failure path", () => {
       (c) => c[0] && typeof c[0] === "object" && "path" in c[0],
     );
     expect(saveCall).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runWithSession — first-run path (no session file)
+// ---------------------------------------------------------------------------
+describe("runWithSession — first-run path (no session file)", () => {
+  beforeEach(() => {
+    // Simulate session file NOT existing (ENOENT — normal before bot:login)
+    vi.mocked(fsMock.access).mockRejectedValue(
+      Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" }),
+    );
+  });
+
+  it("does NOT throw when the session file is missing", async () => {
+    const fn = vi.fn().mockResolvedValue("ok");
+    await expect(runWithSession("facebook", fn)).resolves.toBe("ok");
+  });
+
+  it("calls browser.newContext WITHOUT a storageState property when session file is missing", async () => {
+    const fn = vi.fn().mockResolvedValue(undefined);
+    await runWithSession("facebook", fn);
+
+    expect(mockBrowser.newContext).toHaveBeenCalledTimes(1);
+    const callArg = mockBrowser.newContext.mock.calls[0][0] as Record<string, unknown>;
+    // Either called with an empty object or with storageState explicitly undefined/absent
+    expect(callArg).not.toHaveProperty("storageState", expect.any(String));
+  });
+
+  it("still invokes fn and closes the browser on first run", async () => {
+    const fn = vi.fn().mockResolvedValue(42);
+    await runWithSession("facebook", fn);
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(mockBrowser.close).toHaveBeenCalledTimes(1);
   });
 });
