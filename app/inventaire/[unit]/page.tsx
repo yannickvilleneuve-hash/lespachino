@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { fetchVehicleByUnit } from "@/lib/listings/queries";
 import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
-import { isWixReady } from "@/lib/wix/config";
 import { isLespacReady } from "@/lib/lespac/config";
 import AppHeader from "@/app/app-header";
 import { StatusBadge } from "../status-badges";
@@ -23,9 +22,7 @@ const currencyFmt = new Intl.NumberFormat("fr-CA", {
 function getChannelAvailability(): ChannelAvailability {
   return {
     native: { ready: true, reason: "Fiche web Hino active" },
-    wix: isWixReady()
-      ? { ready: true, reason: "Site Hino / Wix connecté" }
-      : { ready: false, reason: "Connexion Wix manquante" },
+    wix: { ready: false, reason: "Intégration Wix supprimée" },
     fb_marketplace: {
       ready: true,
       reason: "Feed Meta prêt; prix public requis",

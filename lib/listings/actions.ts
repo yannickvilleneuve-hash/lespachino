@@ -18,8 +18,6 @@ import {
 import { generateVariants, maskLikelyPlate, variantPath } from "@/lib/photos/resize";
 import { removeBackgroundWithRemoveBg } from "@/lib/photos/background-removal";
 import { logActivity } from "@/lib/audit/log";
-import { isWixReady } from "@/lib/wix/config";
-import { syncOneToWix } from "@/lib/wix/sync";
 import { isLespacReady } from "@/lib/lespac/config";
 import { syncOneToLespac } from "@/lib/lespac/sync";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
@@ -49,7 +47,6 @@ const ALLOWED_VIDEO_MIME = new Set([
 ]);
 
 const EXTERNAL_CHANNELS: Channel[] = [
-  "wix",
   "fb_marketplace",
   "fb_page",
   "google_vla",
@@ -391,42 +388,6 @@ async function autoSyncChannels(
     const wasSelected = previous.has(channel);
     const shouldPublish = isListingPublished && selected;
     if (!shouldPublish && !wasSelected) {
-      continue;
-    }
-
-    if (channel === "wix") {
-      if (!isWixReady()) {
-        await recordSkipped(supabase, unit, channel, "Variables Wix manquantes");
-        continue;
-      }
-      try {
-        const result = await runChannelJob(supabase, unit, channel, jobAction(shouldPublish, channel), userEmail, () =>
-          syncOneToWix(unit, shouldPublish),
-        );
-        await logActivity({
-          userEmail,
-          action: "sync_wix",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: result.action, error: result.error },
-        });
-        await recordChannelState(supabase, {
-          unit,
-          channel,
-          status: result.action,
-          error: result.error ?? null,
-        });
-      } catch (err) {
-        const msg = (err as Error).message;
-        await logActivity({
-          userEmail,
-          action: "sync_wix",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: "error", error: msg },
-        });
-        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
-      }
       continue;
     }
 

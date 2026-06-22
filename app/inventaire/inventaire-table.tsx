@@ -914,15 +914,6 @@ function AttentionBanner({
       <span className="text-xs uppercase tracking-wide text-blue-900 font-semibold mr-1">
         À faire
       </span>
-      {leadsRecent > 0 && (
-        <Link
-          href="/inventaire/leads"
-          className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full px-3 py-1 text-xs hover:bg-blue-100 hover:border-blue-300 transition"
-        >
-          <span className="font-semibold text-blue-900">{leadsRecent}</span>
-          <span className="text-gray-700">lead{leadsRecent > 1 ? "s" : ""} 7j</span>
-        </Link>
-      )}
       {syncErrorsRecent > 0 && (
         <Link
           href="/dashboard/activity"

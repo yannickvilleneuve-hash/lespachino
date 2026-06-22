@@ -104,13 +104,6 @@ export default async function DashboardPage() {
             <p className="text-xs text-gray-600">Liste, édition, photos, publication.</p>
           </Link>
           <Link
-            href="/inventaire/leads"
-            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
-          >
-            <h3 className="font-semibold mb-1">Leads →</h3>
-            <p className="text-xs text-gray-600">Contacts reçus via formulaires fiche.</p>
-          </Link>
-          <Link
             href="/dashboard/users"
             className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
           >

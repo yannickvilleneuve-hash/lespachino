@@ -2,11 +2,9 @@ import Link from "next/link";
 import { fetchInventory } from "@/lib/listings/queries";
 import { fetchInventoryAlerts } from "@/lib/stats/alerts";
 import { isLespacReady } from "@/lib/lespac/config";
-import { isWixReady } from "@/lib/wix/config";
 import AppHeader from "@/app/app-header";
 import InventaireTable from "./inventaire-table";
 import SyncLespacButton from "./sync-lespac-button";
-import SyncWixButton from "./sync-wix-button";
 import BulkPublishButton from "./bulk-publish-button";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +12,6 @@ export const dynamic = "force-dynamic";
 export default async function InventairePage() {
   const [rows, alerts] = await Promise.all([fetchInventory(), fetchInventoryAlerts()]);
   const lespacReady = isLespacReady();
-  const wixReady = isWixReady();
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -39,10 +36,8 @@ export default async function InventairePage() {
       <div className="flex flex-wrap items-center gap-2 border-b bg-white px-6 py-2">
         <ActionLink href="/inventaire/scan-vin">Scanner VIN</ActionLink>
         <BulkPublishButton />
-        {wixReady && <SyncWixButton />}
         {lespacReady && <SyncLespacButton />}
         <ActionLink href="/dashboard/destinations">Destinations</ActionLink>
-        <ActionLink href="/inventaire/leads">Leads</ActionLink>
         {lespacReady && <ActionLink href="/inventaire/import-lespac">Import Lespac</ActionLink>}
         <ActionLink href="/dashboard/demand">Demande</ActionLink>
       </div>
