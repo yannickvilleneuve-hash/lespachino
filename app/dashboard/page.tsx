@@ -37,6 +37,13 @@ export default async function DashboardPage() {
             <h3 className="font-semibold mb-1">Utilisateurs →</h3>
             <p className="text-xs text-gray-600">Inviter ou retirer un accès.</p>
           </Link>
+          <Link
+            href="/dashboard/bot"
+            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
+          >
+            <h3 className="font-semibold mb-1">Bot Mirror LesPAC →</h3>
+            <p className="text-xs text-gray-600">Synchronisation, sessions et annonces miroir.</p>
+          </Link>
         </nav>
       </div>
     </main>

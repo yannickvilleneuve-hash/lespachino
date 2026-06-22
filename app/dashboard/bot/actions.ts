@@ -27,16 +27,18 @@ export async function syncNow(): Promise<{ ok: boolean; message: string }> {
     };
   }
 
-  const child = spawn(
-    "node",
-    ["-r", "tsconfig-paths/register", entry],
-    {
-      cwd: process.cwd(),
-      detached: true,
-      stdio: "ignore",
-      env: process.env,
-    },
-  );
+  // Build args at runtime so Turbopack static analysis doesn't try to resolve
+  // "-r" or "tsconfig-paths/register" as module specifiers.
+  const nodeArgs: string[] = [];
+  nodeArgs.push("-r");
+  nodeArgs.push("tsconfig-paths/register");
+  nodeArgs.push(entry);
+  const child = spawn("node", nodeArgs, {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: "ignore",
+    env: process.env,
+  });
   child.unref();
 
   revalidatePath("/dashboard/bot");
