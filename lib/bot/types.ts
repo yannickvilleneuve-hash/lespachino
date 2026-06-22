@@ -32,4 +32,18 @@ export interface PublishResult {
   url: string;
 }
 
-// Job / PlatformDriver / error classes appended by later tasks (Phases C–D)
+export type JobAction = "create" | "update" | "remove";
+
+/**
+ * A single unit of work the reconciler hands to a platform driver.
+ * - create: `listing` set, `externalId` null
+ * - update: `listing` set, `externalId` = the live ad's id
+ * - remove: `listing` null, `externalId` = the live ad's id
+ */
+export interface Job {
+  action: JobAction;
+  platform: Platform;
+  lespacId: string;
+  listing: MirrorListing | null;
+  externalId: string | null;
+}
