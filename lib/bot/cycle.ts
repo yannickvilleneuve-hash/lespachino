@@ -17,8 +17,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadBotConfig } from "@/lib/bot/config";
-import type { Job, MirrorListing, Platform } from "@/lib/bot/types";
-import { SessionExpiredError, TransientError, FatalError } from "@/lib/bot/types";
+import type { Job, MirrorListing, NormalizedListing, Platform } from "@/lib/bot/types";
+import { SessionExpiredError, FatalError } from "@/lib/bot/types";
 import { fetchActiveListings } from "@/lib/bot/lespac-reader";
 import { computeContentHash } from "@/lib/bot/hash";
 import { refreshSnapshot } from "@/lib/bot/snapshot";
@@ -60,9 +60,9 @@ class StopPlatform extends Error {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function normalize(listing: MirrorListing): MirrorListing {
-  return listing.contentHash
-    ? listing
+function normalize(listing: NormalizedListing): MirrorListing {
+  return "contentHash" in listing && typeof listing.contentHash === "string"
+    ? (listing as MirrorListing)
     : { ...listing, contentHash: computeContentHash(listing) };
 }
 
@@ -159,7 +159,8 @@ async function runJob(
       return;
     }
 
-    // TransientError (or any other unexpected error) → retry accounting.
+    // Transient or unexpected error → retry accounting.
+    // attempt_count is incremented in recordResult; this prior+1 mirrors the value recordResult will store, keeping the exhaustion decision consistent.
     const nextAttempt = (prior?.attemptCount ?? 0) + 1;
     const exhausted = nextAttempt >= cfg.maxAttempts;
     await recordResult(supabase, job, {
@@ -175,7 +176,6 @@ async function runJob(
       );
       summary.failed++;
     }
-    // Not TransientError: still retry next cycle — same path, already recorded.
   }
 }
 
@@ -189,9 +189,7 @@ export async function runCycle(): Promise<CycleSummary> {
 
   // Step 1: Pull active LesPAC listings and ensure they have a content hash.
   const rawListings = await fetchActiveListings();
-  const listings = rawListings.map((l) =>
-    normalize(l as MirrorListing),
-  );
+  const listings = rawListings.map((l) => normalize(l));
   const listingsMap = new Map<string, MirrorListing>(
     listings.map((l) => [l.lespacId, l]),
   );
