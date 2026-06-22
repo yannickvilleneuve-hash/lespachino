@@ -16,7 +16,7 @@ import {
   upsertListing,
   togglePublished,
 } from "@/lib/listings/actions";
-import type { PublicationError } from "@/lib/listings/publication";
+type PublicationError = "description_missing" | "no_photos" | "no_hero" | "not_available" | "price_missing" | "no_channels";
 import {
   suggestDescription as buildDescription,
   BODY_TYPE_LABELS,
@@ -239,7 +239,7 @@ export default function ListingForm({
             reset(clean);
             const result = await togglePublished(unit, !isPublished);
             if (!result.ok) {
-              setPublishMsg(PUBLICATION_ERROR_MSG[result.error]);
+              setPublishMsg(PUBLICATION_ERROR_MSG[result.error as PublicationError]);
               return;
             }
             setPublishMsg(
@@ -285,7 +285,7 @@ export default function ListingForm({
           action.publish,
         );
         if (!result.ok) {
-          setPublishMsg(PUBLICATION_ERROR_MSG[result.error]);
+          setPublishMsg(PUBLICATION_ERROR_MSG[result.error as PublicationError]);
           return;
         }
         reset({ ...clean, channels: result.channels });

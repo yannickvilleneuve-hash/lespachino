@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { generateVariants, variantPath } from "@/lib/photos/resize";
 import { logActivity } from "@/lib/audit/log";
-import { recordChannelState } from "@/lib/listings/channel-state";
 import { DEFAULT_CHANNELS } from "@/lib/listings/schema";
 import {
   listAll,
@@ -212,22 +211,6 @@ export async function importLespacListing(
       }
     }
   }
-
-  // Stamp état canal Lespac avec listingId + URL externe.
-  if (opts.publish) {
-    await recordChannelState(supabase, {
-      unit,
-      channel: "native",
-      status: "published",
-    });
-  }
-  await recordChannelState(supabase, {
-    unit,
-    channel: "lespac",
-    status: "claimed",
-    external_id: String(resolvedListingId),
-    external_url: detail.listingURL ?? null,
-  });
 
   // Désactive l'annonce manuelle Lespac (on republiera via vendorId).
   let deactivated = false;

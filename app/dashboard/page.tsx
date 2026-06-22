@@ -118,13 +118,6 @@ export default async function DashboardPage() {
             <p className="text-xs text-gray-600">Qui a fait quoi, dernières 200 actions.</p>
           </Link>
           <Link
-            href="/dashboard/publication-jobs"
-            className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
-          >
-            <h3 className="font-semibold mb-1">Publication →</h3>
-            <p className="text-xs text-gray-600">Jobs par canal, erreurs et relances.</p>
-          </Link>
-          <Link
             href="/dashboard/destinations"
             className="block bg-white p-5 rounded shadow hover:shadow-md transition border"
           >

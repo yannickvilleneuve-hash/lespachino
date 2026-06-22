@@ -8,7 +8,7 @@ import { setHidden, togglePublished } from "@/lib/listings/actions";
 import type { InventoryRow } from "@/lib/listings/queries";
 import type { InventoryAlerts } from "@/lib/stats/alerts";
 import { ViewModeSwitcher, useViewMode } from "@/app/view-mode-switcher";
-import { StatusBadge, ChannelDots, statusRank } from "./status-badges";
+import { StatusBadge, statusRank } from "./status-badges";
 import { VehiclePlaceholder } from "@/app/vehicle-placeholder";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
@@ -32,8 +32,7 @@ type SortKey =
   | "date_added"
   | "views_7d"
   | "leads_7d"
-  | "status"
-  | "channels_live";
+  | "status";
 type SortDir = "asc" | "desc";
 
 type StatusFilter = "all" | "available" | "quoted" | "sold";
@@ -166,13 +165,6 @@ const COLUMNS: ColumnDef[] = [
     value: (r) => statusRank(r),
   },
   {
-    key: "channels_live",
-    label: "Affiché sur",
-    align: "left",
-    render: (r) => <ChannelDots state={r.channel_state} />,
-    value: (r) => r.channel_state.length,
-  },
-  {
     key: "is_published",
     label: "Publié",
     align: "center",
@@ -213,7 +205,6 @@ const DEFAULT_DIR: Record<SortKey, SortDir> = {
   views_7d: "desc",
   leads_7d: "desc",
   status: "asc",
-  channels_live: "desc",
 };
 
 function compareValues(a: string | number | boolean | null, b: string | number | boolean | null) {
@@ -351,7 +342,6 @@ export default function InventaireTable({
   return (
     <div>
       <AttentionBanner
-        leadsRecent={alerts.leadsRecent}
         syncErrorsRecent={alerts.syncErrorsRecent}
         noPhotoCount={noPhotoCount}
         attention={attention}
@@ -805,7 +795,6 @@ function AdminListe({
                   size="sm"
                 />
                 <StatusBadge row={r} dense />
-                <ChannelDots state={r.channel_state} />
                 {r.date_added && (
                   <span className="text-gray-400 font-mono">{r.date_added}</span>
                 )}
@@ -895,19 +884,17 @@ function StatusChip({
 }
 
 function AttentionBanner({
-  leadsRecent,
   syncErrorsRecent,
   noPhotoCount,
   attention,
   onAttention,
 }: {
-  leadsRecent: number;
   syncErrorsRecent: number;
   noPhotoCount: number;
   attention: AttentionFilter;
   onAttention: (a: AttentionFilter) => void;
 }) {
-  const totalAttention = leadsRecent + syncErrorsRecent + noPhotoCount;
+  const totalAttention = syncErrorsRecent + noPhotoCount;
   if (totalAttention === 0) return null;
   return (
     <div className="px-6 py-3 bg-blue-50 border-b border-blue-100 flex flex-wrap gap-2 items-center">
