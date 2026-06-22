@@ -11,7 +11,6 @@ import {
   deactivateByListingId,
 } from "@/lib/lespac/client";
 import { isManual, rankSertiMatches, type SertiCandidate, type MatchScore } from "@/lib/lespac/import";
-import { listInventoryVehicles } from "@/lib/serti/wgi";
 import type { LespacListing } from "@/lib/lespac/types";
 
 const PHOTO_BUCKET = "vehicle-photos";
@@ -48,9 +47,10 @@ export interface LespacImportContext {
 export async function getLespacImportContext(): Promise<LespacImportContext> {
   const { supabase } = await requireUser();
 
-  const [summaries, vehicles, claimsRes] = await Promise.all([
+  // SERTI removed — vehicle list is empty until a replacement source is wired up.
+  const vehicles: SertiCandidate[] = [];
+  const [summaries, claimsRes] = await Promise.all([
     listAll(),
-    listInventoryVehicles(),
     supabase
       .from("listing_channel_state")
       .select("unit, external_id")

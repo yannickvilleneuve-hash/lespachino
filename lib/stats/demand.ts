@@ -1,5 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listInventoryVehicles } from "@/lib/serti/wgi";
 
 export interface DemandSegment {
   key: string;
@@ -27,7 +26,8 @@ export interface DemandInsights {
 
 export async function fetchDemandInsights(): Promise<DemandInsights> {
   const admin = createAdminClient();
-  const vehicles = await listInventoryVehicles();
+  // SERTI removed — vehicle list no longer available; demand insights are pending redesign.
+  const vehicles: { unit: string; make: string; model: string; category: string; year: number; km: number }[] = [];
   const units = vehicles.map((v) => v.unit);
   if (units.length === 0) return { segments: [], opportunities: [] };
 

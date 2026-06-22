@@ -4,7 +4,9 @@
  */
 
 import type { LespacListing, LespacListingSummary } from "./types";
-import type { SertiStatus } from "@/lib/serti/wgi";
+
+/** Former SERTI vehicle status — kept for SertiCandidate compatibility during migration. */
+export type SertiStatus = "available" | "quoted" | "sold";
 
 export interface SertiCandidate {
   unit: string;

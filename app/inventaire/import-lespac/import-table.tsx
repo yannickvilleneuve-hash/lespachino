@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { importLespacListing, type LespacImportRow } from "./actions";
-import type { SertiCandidate } from "@/lib/lespac/import";
-import type { SertiStatus } from "@/lib/serti/wgi";
+import type { SertiCandidate, SertiStatus } from "@/lib/lespac/import";
 
 const currencyFmt = new Intl.NumberFormat("fr-CA", {
   style: "currency",

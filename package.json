@@ -19,7 +19,6 @@
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",
     "next": "16.2.4",
-    "node-jt400": "^6.0.1",
     "qrcode": "^1.5.4",
     "react": "19.2.5",
     "react-dom": "19.2.5",
@@ -48,9 +47,6 @@
   "pnpm": {
     "overrides": {
       "postcss": "8.5.10"
-    },
-    "onlyBuiltDependencies": [
-      "java"
-    ]
+    }
   }
 }
