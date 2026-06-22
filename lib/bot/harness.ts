@@ -68,7 +68,11 @@ export async function runWithSession<T>(
       storageStateArg ? { storageState: storageStateArg } : {},
     );
     const result = await fn(ctx);
+    const sessionsDir = path.dirname(storageState);
+    await fs.mkdir(sessionsDir, { recursive: true, mode: 0o700 });
+    await fs.chmod(sessionsDir, 0o700);
     await ctx.storageState({ path: storageState });
+    await fs.chmod(storageState, 0o600);
     return result;
   } catch (err) {
     if (ctx) {

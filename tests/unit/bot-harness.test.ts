@@ -11,19 +11,29 @@ import * as path from "node:path";
 
 // ---------------------------------------------------------------------------
 // Mock node:fs promises so we can control fs.access per-test.
-// Only stub `access` and `mkdir` — keep `mkdtemp`/`writeFile` real so that
-// downloadPhotos tests can verify files are actually written to disk.
+// Only stub `access`, `mkdir`, and `chmod` — keep `mkdtemp`/`writeFile` real
+// so that downloadPhotos tests can verify files are actually written to disk.
+//
+// IMPORTANT: We mutate `actual.promises` IN PLACE rather than replacing it
+// with a spread copy. The harness imports `{ promises as fs }` at module load
+// time and holds a live reference to the original `fs.promises` object.
+// Replacing it with a new object (via spread) would leave the harness pointing
+// at the unmocked original. Mutating the original object directly ensures both
+// the test file and the harness see the same vi.fn() stubs.
 // ---------------------------------------------------------------------------
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
-  return {
-    ...actual,
-    promises: {
-      ...actual.promises,
-      access: vi.fn().mockResolvedValue(undefined), // default: file exists; override per test
-      mkdir: vi.fn().mockResolvedValue(undefined),
-    },
-  };
+  // Patch in place — harness holds a live reference to actual.promises
+  (actual.promises as Record<string, unknown>).access = vi
+    .fn()
+    .mockResolvedValue(undefined); // default: file exists; override per test
+  (actual.promises as Record<string, unknown>).mkdir = vi
+    .fn()
+    .mockResolvedValue(undefined);
+  (actual.promises as Record<string, unknown>).chmod = vi
+    .fn()
+    .mockResolvedValue(undefined);
+  return actual;
 });
 
 // ---------------------------------------------------------------------------
@@ -89,6 +99,7 @@ afterEach(() => {
   mockCtx.storageState.mockResolvedValue(undefined);
   mockCtx.pages.mockReturnValue([mockPage]);
   mockPage.screenshot.mockResolvedValue(undefined);
+  vi.mocked(fsMock.chmod).mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -254,6 +265,23 @@ describe("runWithSession — success path", () => {
     expect(mockChromium.launch).toHaveBeenCalledWith(
       expect.objectContaining({ headless: true }),
     );
+  });
+
+  it("chmods the storageState file to 0o600 after saving", async () => {
+    const fn = vi.fn().mockResolvedValue(undefined);
+    await runWithSession("facebook", fn);
+
+    const { storageState } = sessionPaths("facebook");
+    expect(vi.mocked(fsMock.chmod)).toHaveBeenCalledWith(storageState, 0o600);
+  });
+
+  it("chmods the sessions directory to 0o700 after mkdir", async () => {
+    const fn = vi.fn().mockResolvedValue(undefined);
+    await runWithSession("kijiji", fn);
+
+    const { storageState } = sessionPaths("kijiji");
+    const sessionsDir = path.dirname(storageState);
+    expect(vi.mocked(fsMock.chmod)).toHaveBeenCalledWith(sessionsDir, 0o700);
   });
 });
 

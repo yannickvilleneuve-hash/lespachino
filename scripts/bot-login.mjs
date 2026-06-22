@@ -1,7 +1,7 @@
 // Usage: pnpm bot:login <facebook|kijiji|autotrader>
 // Launches a VISIBLE browser, operator logs in by hand, saves storageState.
 import { chromium } from "playwright";
-import { mkdir } from "node:fs/promises";
+import { mkdir, chmod } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import path from "node:path";
 
@@ -43,8 +43,10 @@ await waitForEnter(
   "When you are fully logged in, press ENTER here to save the session... "
 );
 
-await mkdir(sessionsDir, { recursive: true });
+await mkdir(sessionsDir, { recursive: true, mode: 0o700 });
+await chmod(sessionsDir, 0o700);
 await context.storageState({ path: statePath });
+await chmod(statePath, 0o600);
 await browser.close();
 
 console.log(`\n✓ Saved ${platform} session to ${statePath}`);
