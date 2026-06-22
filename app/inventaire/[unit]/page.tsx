@@ -5,7 +5,6 @@ import { withSignedUrls } from "@/lib/listings/photos";
 import { CHANNELS, type Channel } from "@/lib/listings/schema";
 import { isWixReady } from "@/lib/wix/config";
 import { isLespacReady } from "@/lib/lespac/config";
-import { isPagePostReady } from "@/lib/meta/page";
 import AppHeader from "@/app/app-header";
 import { StatusBadge } from "../status-badges";
 import ListingForm, { type ChannelAvailability } from "./listing-form";
@@ -31,9 +30,7 @@ function getChannelAvailability(): ChannelAvailability {
       ready: true,
       reason: "Feed Meta prêt; prix public requis",
     },
-    fb_page: isPagePostReady()
-      ? { ready: true, reason: "Page Facebook connectée" }
-      : { ready: false, reason: "Page Facebook non configurée" },
+    fb_page: { ready: false, reason: "Page Facebook non configurée" },
     google_vla: {
       ready: true,
       reason: "Feed Google prêt; prix public requis",

@@ -41,10 +41,7 @@ export default async function InventairePage() {
         <BulkPublishButton />
         {wixReady && <SyncWixButton />}
         {lespacReady && <SyncLespacButton />}
-        <ActionLink href="/dashboard/meta">Meta</ActionLink>
-        <ActionLink href="/dashboard/google">Google</ActionLink>
         <ActionLink href="/dashboard/destinations">Destinations</ActionLink>
-        <ActionLink href="/inventaire/sandhills">Sandhills</ActionLink>
         <ActionLink href="/inventaire/leads">Leads</ActionLink>
         {lespacReady && <ActionLink href="/inventaire/import-lespac">Import Lespac</ActionLink>}
         <ActionLink href="/dashboard/demand">Demande</ActionLink>

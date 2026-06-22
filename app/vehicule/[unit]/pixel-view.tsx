@@ -9,14 +9,6 @@ export default function PixelViewContent({
   unit: string;
 }) {
   useEffect(() => {
-    if (typeof window === "undefined" || !window.fbq) return;
-    window.fbq("track", "ViewContent", {
-      content_ids: [unit],
-      content_type: "vehicle",
-    });
-  }, [unit]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
       void logPublicVehicleEvent(unit, "engaged_30s", {});
     }, 30000);

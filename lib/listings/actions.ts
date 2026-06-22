@@ -22,7 +22,6 @@ import { isWixReady } from "@/lib/wix/config";
 import { syncOneToWix } from "@/lib/wix/sync";
 import { isLespacReady } from "@/lib/lespac/config";
 import { syncOneToLespac } from "@/lib/lespac/sync";
-import { postVehicleToPage, isPagePostReady } from "@/lib/meta/page";
 import { fetchPublicListingByUnit } from "@/lib/listings/public";
 import { recordChannelState } from "@/lib/listings/channel-state";
 import {
@@ -492,67 +491,12 @@ async function autoSyncChannels(
     }
 
     if (channel === "fb_page") {
-      if (!shouldPublish) {
-        await recordChannelState(supabase, {
-          unit,
-          channel,
-          status: "unpublished",
-          error: "Les posts Facebook déjà créés ne sont pas supprimés automatiquement.",
-        });
-        continue;
-      }
-      if (!isPagePostReady()) {
-        await recordSkipped(supabase, unit, channel, "Variables Meta Page manquantes");
-        continue;
-      }
-      try {
-        const detail = await fetchPublicListingByUnit(unit, { channel: "fb_page" });
-        const result = await runChannelJob(supabase, unit, channel, "post", userEmail, () =>
-          detail
-            ? postVehicleToPage({
-                unit: detail.unit,
-                year: detail.year,
-                make: detail.make,
-                model: detail.model,
-                category: detail.category,
-                km: detail.km,
-                price_cad: detail.price_cad,
-                hero_url: detail.hero_url,
-                description_fr: detail.description_fr,
-                detail_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/vehicule/${encodeURIComponent(unit)}`,
-              })
-            : Promise.resolve({ action: "skipped", reason: "listing introuvable" } as const),
-        );
-        const errMsg = resultMessage(result);
-        await logActivity({
-          userEmail,
-          action: "post_fb_page",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: result.action, error: errMsg },
-        });
-        const postId = "postId" in result && typeof result.postId === "string" ? result.postId : null;
-        const pageId = process.env.META_PAGE_ID;
-        const externalUrl = postId && pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : null;
-        await recordChannelState(supabase, {
-          unit,
-          channel,
-          status: result.action,
-          external_id: postId,
-          external_url: externalUrl,
-          error: errMsg,
-        });
-      } catch (err) {
-        const msg = (err as Error).message;
-        await logActivity({
-          userEmail,
-          action: "post_fb_page",
-          targetType: "listing",
-          targetId: unit,
-          details: { trigger: "auto", action: "error", error: msg },
-        });
-        await recordChannelState(supabase, { unit, channel, status: "error", error: msg });
-      }
+      await recordChannelState(supabase, {
+        unit,
+        channel,
+        status: "unpublished",
+        error: "Intégration Facebook Page supprimée.",
+      });
       continue;
     }
 
