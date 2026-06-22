@@ -13,7 +13,7 @@
     "bot:build": "tsc -p tsconfig.worker.json && tsc-alias -p tsconfig.worker.json",
     "bot": "node worker/dist/worker/index.js",
     "bot:cycle": "pnpm bot:build && node worker/dist/worker/run-once.js",
-    "bot:login": "node worker/dist/worker/login.js"
+    "bot:login": "node scripts/bot-login.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

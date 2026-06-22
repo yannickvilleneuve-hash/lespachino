@@ -28,10 +28,8 @@ export async function syncNow(): Promise<{ ok: boolean; message: string }> {
   }
 
   // Build args at runtime so Turbopack static analysis doesn't try to resolve
-  // "-r" or "tsconfig-paths/register" as module specifiers.
+  // the worker path as a module specifier during build.
   const nodeArgs: string[] = [];
-  nodeArgs.push("-r");
-  nodeArgs.push("tsconfig-paths/register");
   nodeArgs.push(entry);
   const child = spawn("node", nodeArgs, {
     cwd: process.cwd(),

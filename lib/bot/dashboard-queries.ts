@@ -171,13 +171,17 @@ export async function fetchBotDashboard(
 
   // ── Attention items ────────────────────────────────────────────────────────
 
-  // Index screenshot_path from bot_event, keyed by "lespacId:platform"
+  // Index screenshotUrl from bot_event, keyed by "lespacId:platform".
+  // Convert stored filesystem path to the dashboard screenshot API URL so the
+  // UI can link directly without knowing the server layout.
   const screenshotByKey = new Map<string, string>();
   for (const e of evtRows) {
     if (e.screenshot_path && e.lespac_id && e.platform) {
       const key = `${e.lespac_id}:${e.platform}`;
       if (!screenshotByKey.has(key)) {
-        screenshotByKey.set(key, e.screenshot_path);
+        // Derive basename from the stored path (e.g. "/sessions/failures/fb-L1.png" → "fb-L1.png")
+        const basename = e.screenshot_path.split("/").pop() ?? e.screenshot_path;
+        screenshotByKey.set(key, `/dashboard/bot/screenshot?file=${encodeURIComponent(basename)}`);
       }
     }
   }

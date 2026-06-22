@@ -66,6 +66,36 @@ function normalize(listing: NormalizedListing): MirrorListing {
     : { ...listing, contentHash: computeContentHash(listing) };
 }
 
+/**
+ * Insert a single row into `bot_event`.
+ * outcome must be one of: 'success' | 'failure' | 'skipped' | 'sent'
+ */
+async function writeBotEvent(
+  supabase: SupabaseClient,
+  event: {
+    lespac_id: string | null;
+    platform: string | null;
+    action: string;
+    outcome: "success" | "failure" | "skipped" | "sent";
+    detail?: Record<string, unknown> | null;
+    screenshot_path?: string | null;
+  },
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("bot_event") as any).insert({
+    lespac_id: event.lespac_id,
+    platform: event.platform,
+    action: event.action,
+    outcome: event.outcome,
+    detail: event.detail ?? null,
+    screenshot_path: event.screenshot_path ?? null,
+  });
+  if (error) {
+    // Non-fatal: log but don't crash the cycle over a missing timeline entry.
+    console.error(`writeBotEvent(${event.action}/${event.lespac_id}): ${error.message}`);
+  }
+}
+
 async function handleSessionDeath(
   supabase: SupabaseClient,
   platform: Platform,
@@ -74,11 +104,11 @@ async function handleSessionDeath(
   if (summary.sessionsDead.includes(platform)) return;
   summary.sessionsDead.push(platform);
 
-  // Mark the platform session as dead in DB so the dashboard can surface it.
+  // Mark the platform session as needing reauth in DB so the dashboard can surface it.
   await supabase
     .from("platform_session")
     .upsert(
-      { platform, health: "dead", last_validated_at: new Date().toISOString() },
+      { platform, health: "needs_reauth", last_validated_at: new Date().toISOString() },
       { onConflict: "platform" },
     );
 
@@ -135,6 +165,14 @@ async function runJob(
       // Malformed job — skip silently (defensive)
       return;
     }
+
+    // Per-job success event
+    await writeBotEvent(supabase, {
+      lespac_id: job.lespacId,
+      platform: job.platform,
+      action: job.action,
+      outcome: "success",
+    });
     summary.succeeded++;
   } catch (err) {
     // Session expired → bubble a sentinel so the platform loop stops, but the
@@ -155,6 +193,14 @@ async function runJob(
         `Échec fatal ${job.platform} — ${job.lespacId}`,
         `Le pilote ${job.platform} a échoué (page modifiée?). Capture: ${screenshot ?? "n/a"}`,
       );
+      // Per-job failure event (with screenshot path when available)
+      await writeBotEvent(supabase, {
+        lespac_id: job.lespacId,
+        platform: job.platform,
+        action: job.action,
+        outcome: "failure",
+        screenshot_path: screenshot ?? null,
+      });
       summary.failed++;
       return;
     }
@@ -174,6 +220,14 @@ async function runJob(
         `Annonce ${job.lespacId} abandonnée sur ${job.platform}`,
         `Après ${cfg.maxAttempts} tentatives, le bot abandonne ${job.lespacId} sur ${job.platform}.`,
       );
+      // Per-job failure event on exhaustion
+      await writeBotEvent(supabase, {
+        lespac_id: job.lespacId,
+        platform: job.platform,
+        action: job.action,
+        outcome: "failure",
+        detail: { error: err instanceof Error ? err.message : String(err), attempts: nextAttempt },
+      });
       summary.failed++;
     }
   }
@@ -235,7 +289,7 @@ export async function runCycle(): Promise<CycleSummary> {
       });
     } catch (err) {
       if (err instanceof StopPlatform || err instanceof SessionExpiredError) {
-        // Session expired — mark dead, alert, continue to next platform.
+        // Session expired — mark needs_reauth, alert, continue to next platform.
         await handleSessionDeath(supabase, platform, summary);
         continue;
       }
@@ -243,6 +297,16 @@ export async function runCycle(): Promise<CycleSummary> {
       throw err;
     }
   }
+
+  // Always write a heartbeat sync event at the end of the cycle.
+  // This guarantees lastSyncAt / nextSyncAt in the dashboard reflect the latest run.
+  await writeBotEvent(supabase, {
+    lespac_id: null,
+    platform: null,
+    action: "sync",
+    outcome: "success",
+    detail: summary as unknown as Record<string, unknown>,
+  });
 
   return summary;
 }
