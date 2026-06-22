@@ -48,6 +48,9 @@ next-env.d.ts
 # supabase local CLI state
 supabase/.temp/
 
+# Playwright saved login sessions (cookies — never commit)
+/sessions/*.json
+
 # editors
 .vscode/
 .idea/

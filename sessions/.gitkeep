@@ -1,0 +1,2 @@
+# sessions — Playwright storageState per platform (sessions/<platform>.json).
+Files are gitignored; this placeholder keeps the dir present.
