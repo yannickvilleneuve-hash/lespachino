@@ -16,12 +16,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mocks — must come before imports of the module under test
 // ---------------------------------------------------------------------------
 
+// Shared spy for bot_event inserts — recreated per createAdminClient() call
+let botEventInsertSpy: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue({ error: null });
+
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    from: vi.fn().mockReturnValue({
+  createAdminClient: () => {
+    botEventInsertSpy = vi.fn().mockResolvedValue({ error: null });
+    const builder = {
       upsert: vi.fn().mockResolvedValue({ error: null }),
-    }),
-  }),
+      insert: botEventInsertSpy,
+    };
+    return { from: vi.fn().mockReturnValue(builder) };
+  },
 }));
 
 vi.mock("@/lib/bot/config", () => ({
@@ -402,6 +408,7 @@ describe("runCycle", () => {
       createAdminClient: () => ({
         from: vi.fn().mockReturnValue({
           upsert: vi.fn().mockResolvedValue({ error: null }),
+          insert: vi.fn().mockResolvedValue({ error: null }),
         }),
       }),
     }));
@@ -571,5 +578,70 @@ describe("runCycle", () => {
 
     // pace called between jobs: 3 jobs = 2 inter-job paces
     expect(pace).toHaveBeenCalledTimes(2);
+  });
+
+  it("writes a per-job bot_event with the correct action and outcome on success", async () => {
+    (buildJobs as AnyFn).mockReturnValue([job({ platform: "facebook", lespacId: "L1" })]);
+    setDrivers({
+      facebook: {
+        platform: "facebook",
+        publish: vi.fn(async () => ({ externalId: "x", url: "u" })),
+      },
+    });
+
+    await runCycle();
+
+    // At least one insert should have been called with a job event (action=create, outcome=success)
+    const insertCalls = botEventInsertSpy.mock.calls;
+    const jobEvent = insertCalls.find(
+      (c: unknown[]) =>
+        (c[0] as Record<string, unknown>).action === "create" &&
+        (c[0] as Record<string, unknown>).outcome === "success" &&
+        (c[0] as Record<string, unknown>).lespac_id === "L1",
+    );
+    expect(jobEvent).toBeDefined();
+  });
+
+  it("writes a per-job bot_event with outcome=failure and screenshot_path on FatalError", async () => {
+    (buildJobs as AnyFn).mockReturnValue([job({ platform: "facebook", lespacId: "L1" })]);
+    const err = new FatalError("page changed") as FatalError & { screenshotPath?: string };
+    err.screenshotPath = "/sessions/failures/fb-L1.png";
+    setDrivers({
+      facebook: {
+        platform: "facebook",
+        publish: vi.fn(async () => {
+          throw err;
+        }),
+      },
+    });
+
+    await runCycle();
+
+    const insertCalls = botEventInsertSpy.mock.calls;
+    const failEvent = insertCalls.find(
+      (c: unknown[]) =>
+        (c[0] as Record<string, unknown>).outcome === "failure" &&
+        (c[0] as Record<string, unknown>).lespac_id === "L1",
+    );
+    expect(failEvent).toBeDefined();
+    expect((failEvent![0] as Record<string, unknown>).screenshot_path).toBe(
+      "/sessions/failures/fb-L1.png",
+    );
+  });
+
+  it("always writes a sync heartbeat bot_event at the end of runCycle", async () => {
+    (buildJobs as AnyFn).mockReturnValue([]);
+    setDrivers({});
+
+    await runCycle();
+
+    const insertCalls = botEventInsertSpy.mock.calls;
+    const syncEvent = insertCalls.find(
+      (c: unknown[]) =>
+        (c[0] as Record<string, unknown>).action === "sync" &&
+        (c[0] as Record<string, unknown>).outcome === "success" &&
+        (c[0] as Record<string, unknown>).lespac_id === null,
+    );
+    expect(syncEvent).toBeDefined();
   });
 });

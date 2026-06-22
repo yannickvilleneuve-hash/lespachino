@@ -116,7 +116,8 @@ describe("syncNow", () => {
     expect(mockSpawn).toHaveBeenCalledOnce();
     const [cmd, args, opts] = mockSpawn.mock.calls[0] as [string, string[], Record<string, unknown>];
     expect(cmd).toBe("node");
-    expect(args).toContain("tsconfig-paths/register");
+    // tsconfig-paths/register removed (Nit 5) — worker is pre-compiled, no runtime path aliasing needed
+    expect(args).not.toContain("tsconfig-paths/register");
     expect(args.some((a: string) => a.includes("run-once.js"))).toBe(true);
     expect(opts.detached).toBe(true);
     expect(opts.stdio).toBe("ignore");

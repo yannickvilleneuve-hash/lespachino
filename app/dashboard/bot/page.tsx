@@ -76,7 +76,7 @@ export default async function BotDashboardPage() {
                   <span>{a.message}</span>
                   {a.screenshotUrl && (
                     <a
-                      href={`/dashboard/bot/screenshot?path=${encodeURIComponent(a.screenshotUrl)}`}
+                      href={a.screenshotUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium hover:bg-amber-100"
