@@ -50,14 +50,17 @@ export async function refreshSnapshot(
     .update({ status: "gone" })
     .eq("status", "active");
 
+  // supabase-js loses the awaitable type across the conditional .not() chain;
+  // one cast, one disable.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const goneFilter = goneBase as any;
   const goneResult: { error?: unknown } = await (presentIds.length > 0
-    ? (goneBase as any).not(
+    ? goneFilter.not(
         "lespac_id",
         "in",
         `(${presentIds.map((id) => `"${id}"`).join(",")})`,
       )
-    : (goneBase as any));
+    : goneFilter);
 
   if (goneResult?.error) {
     throw new Error(
