@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": "worker/dist",
+    "rootDir": ".",
+    "incremental": false,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": [
+    "worker/**/*.ts",
+    "lib/bot/**/*.ts",
+    "lib/graph/**/*.ts",
+    "lib/supabase/**/*.ts",
+    "lib/lespac/**/*.ts",
+    "lib/dealer/**/*.ts"
+  ]
+}

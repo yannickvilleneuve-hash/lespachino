@@ -33,10 +33,9 @@ module.exports = {
     },
     {
       name: "pacman-bot",
-      script: "node",
-      args: "worker/index.js",
+      script: "worker/dist/worker/index.js",
       cwd: "/home/hino1/pacman",
-      interpreter: "none",
+      interpreter: "node",
       exec_mode: "fork",
       instances: 1,
       autorestart: true,

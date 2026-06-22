@@ -41,6 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# worker build output (compiled JS — run pnpm bot:build to regenerate)
+/worker/dist/
+
 # superpowers workspace state
 .superpowers/brainstorm/*/state/
 .superpowers/brainstorm/*/content/
