@@ -14,6 +14,8 @@ export interface BotConfig {
   operatorEmail: string;
   sessionsDir: string;
   screenshotsDir: string;
+  paceMinMs: number;
+  paceMaxMs: number;
 }
 
 function num(value: string | undefined, fallback: number): number {
@@ -39,5 +41,39 @@ export function loadBotConfig(env?: Record<string, string | undefined>): BotConf
     operatorEmail: processEnv.OPERATOR_EMAIL ?? "",
     sessionsDir,
     screenshotsDir: processEnv.BOT_SCREENSHOTS_DIR ?? path.join(sessionsDir, "screenshots"),
+    paceMinMs: num(processEnv.BOT_PACE_MIN_MS, 4000),
+    paceMaxMs: num(processEnv.BOT_PACE_MAX_MS, 12000),
+  };
+}
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/types";
+
+/**
+ * Env defaults overlaid with the live `bot_setting` row (DB wins where set).
+ * The worker and dashboard call this so config edits apply without a restart.
+ */
+export async function getBotConfig(
+  supabase: SupabaseClient<Database>,
+): Promise<BotConfig> {
+  const base = loadBotConfig();
+  const { data } = await supabase
+    .from("bot_setting")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!data) return base;
+  const known = new Set<string>(ALL_PLATFORMS);
+  const platforms = (data.enabled_platforms ?? []).filter((p): p is Platform =>
+    known.has(p),
+  );
+  return {
+    ...base,
+    enabledPlatforms: platforms.length > 0 ? platforms : base.enabledPlatforms,
+    syncIntervalSec: data.sync_interval_sec ?? base.syncIntervalSec,
+    maxJobsPerCycle: data.max_jobs_per_cycle ?? base.maxJobsPerCycle,
+    operatorEmail: data.operator_email ?? base.operatorEmail,
+    paceMinMs: data.pace_min_ms ?? base.paceMinMs,
+    paceMaxMs: data.pace_max_ms ?? base.paceMaxMs,
   };
 }
