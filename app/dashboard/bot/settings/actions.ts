@@ -2,19 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAllowedUser } from "@/lib/auth/require-user";
 import { currentEditor } from "@/lib/auth/current-editor";
 import { botSettingsSchema, type BotSettingsInput } from "@/lib/bot/settings-schema";
 
 export async function saveBotSettings(
   input: BotSettingsInput,
 ): Promise<{ ok: boolean; message: string }> {
-  try {
-    await requireAllowedUser();
-  } catch {
-    return { ok: false, message: "Non authentifié" };
-  }
-
   const parsed = botSettingsSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Entrée invalide." };

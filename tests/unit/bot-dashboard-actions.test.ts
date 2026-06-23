@@ -1,7 +1,7 @@
 /**
  * Unit tests for app/dashboard/bot/actions.ts
  *
- * Auth, child_process.spawn, fs, next/cache, and lib/bot/config are all mocked.
+ * child_process.spawn, fs, next/cache, and lib/bot/config are all mocked.
  * No real subprocesses are spawned, no real files are written.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 // Hoist mutable stubs so vi.mock factories can close over them.
 // ---------------------------------------------------------------------------
-const { mockRequireAllowedUser, mockSpawn, mockChild, mockExistsSync, mockMkdir, mockWriteFile, mockRevalidatePath, mockLoadBotConfig } =
+const { mockSpawn, mockChild, mockExistsSync, mockMkdir, mockWriteFile, mockRevalidatePath, mockLoadBotConfig } =
   vi.hoisted(() => {
     const mockChild = { unref: vi.fn() };
     const mockSpawn = vi.fn().mockReturnValue(mockChild);
@@ -17,7 +17,6 @@ const { mockRequireAllowedUser, mockSpawn, mockChild, mockExistsSync, mockMkdir,
     const mockMkdir = vi.fn().mockResolvedValue(undefined);
     const mockWriteFile = vi.fn().mockResolvedValue(undefined);
     const mockRevalidatePath = vi.fn();
-    const mockRequireAllowedUser = vi.fn().mockResolvedValue("user@example.com");
     const mockLoadBotConfig = vi.fn().mockReturnValue({
       sessionsDir: "/tmp/sessions",
       enabledPlatforms: ["facebook", "kijiji", "autotrader"],
@@ -28,7 +27,6 @@ const { mockRequireAllowedUser, mockSpawn, mockChild, mockExistsSync, mockMkdir,
       screenshotsDir: "/tmp/sessions/screenshots",
     });
     return {
-      mockRequireAllowedUser,
       mockSpawn,
       mockChild,
       mockExistsSync,
@@ -38,10 +36,6 @@ const { mockRequireAllowedUser, mockSpawn, mockChild, mockExistsSync, mockMkdir,
       mockLoadBotConfig,
     };
   });
-
-vi.mock("@/lib/auth/require-user", () => ({
-  requireAllowedUser: mockRequireAllowedUser,
-}));
 
 vi.mock("node:child_process", () => ({
   spawn: mockSpawn,
@@ -82,7 +76,6 @@ function makeFile(content: string): File {
 // ---------------------------------------------------------------------------
 beforeEach(() => {
   vi.clearAllMocks();
-  mockRequireAllowedUser.mockResolvedValue("user@example.com");
   mockSpawn.mockReturnValue(mockChild);
   mockExistsSync.mockReturnValue(true);
   mockMkdir.mockResolvedValue(undefined);
@@ -127,12 +120,6 @@ describe("syncNow", () => {
   it("revalidates /dashboard/bot on success", async () => {
     await syncNow();
     expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bot");
-  });
-
-  it("calls requireAllowedUser before anything else", async () => {
-    mockExistsSync.mockReturnValue(false); // even the missing-build path must auth-gate
-    await syncNow();
-    expect(mockRequireAllowedUser).toHaveBeenCalledOnce();
   });
 });
 
@@ -180,19 +167,10 @@ describe("uploadSession", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bot");
   });
 
-  it("gates auth before validating anything", async () => {
-    mockRequireAllowedUser.mockRejectedValueOnce(new Error("Non authentifié"));
-    await expect(uploadSession("facebook", makeFile(validJson))).rejects.toThrow(
-      "Non authentifié",
-    );
-    expect(mockWriteFile).not.toHaveBeenCalled();
-  });
-
   it("accepts all three known platforms", async () => {
     const platforms = ["facebook", "kijiji", "autotrader"] as const;
     for (const p of platforms) {
       vi.clearAllMocks();
-      mockRequireAllowedUser.mockResolvedValue("user@example.com");
       mockMkdir.mockResolvedValue(undefined);
       mockWriteFile.mockResolvedValue(undefined);
       mockLoadBotConfig.mockReturnValue({ sessionsDir: "/tmp/sessions" });

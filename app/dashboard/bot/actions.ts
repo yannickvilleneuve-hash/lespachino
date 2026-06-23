@@ -5,7 +5,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
-import { requireAllowedUser } from "@/lib/auth/require-user";
 import { loadBotConfig, ALL_PLATFORMS } from "@/lib/bot/config";
 import type { Platform } from "@/lib/bot/types";
 
@@ -17,7 +16,6 @@ const RUN_ONCE = "worker/dist/worker/run-once.js";
  * immediately — the operator watches progress refresh into the dashboard board.
  */
 export async function syncNow(): Promise<{ ok: boolean; message: string }> {
-  await requireAllowedUser();
 
   const entry = path.join(process.cwd(), RUN_ONCE);
   if (!existsSync(entry)) {
@@ -51,7 +49,6 @@ export async function uploadSession(
   platform: Platform,
   file: File,
 ): Promise<{ ok: boolean; message: string }> {
-  await requireAllowedUser();
 
   if (!(ALL_PLATFORMS as readonly string[]).includes(platform)) {
     return { ok: false, message: `Plateforme inconnue: ${platform}` };

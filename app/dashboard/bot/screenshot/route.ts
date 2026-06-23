@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { requireAllowedUser } from "@/lib/auth/require-user";
 
 /**
  * GET /dashboard/bot/screenshot?file=<basename>
  *
- * Auth-gated route that serves PNG screenshots saved by the bot harness.
+ * Route that serves PNG screenshots saved by the bot harness.
  * Screenshots are stored under sessions/failures/ — ONLY files in that
  * directory are served, with strict path-traversal protection.
  *
@@ -14,19 +13,12 @@ import { requireAllowedUser } from "@/lib/auth/require-user";
  * 1. Only .png files are served (MIME + extension check).
  * 2. The resolved file path must be strictly inside FAILURES_DIR — any
  *    `..` sequences or absolute paths that escape the directory are rejected.
- * 3. Auth via requireAllowedUser() — unauthenticated callers get 401.
+ * Access is gated by the localhost bind + Tailscale (operator-level).
  */
 
 const FAILURES_DIR = path.resolve(process.cwd(), "sessions", "failures");
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  // Auth gate
-  try {
-    await requireAllowedUser();
-  } catch {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
   const file = request.nextUrl.searchParams.get("file");
 
   // Must be provided

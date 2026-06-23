@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: ["/"],
-        disallow: ["/dashboard", "/inventaire", "/login", "/auth/", "/api/"],
+        disallow: ["/dashboard", "/inventaire", "/auth/", "/api/"],
       },
     ],
     sitemap: "https://camion-hino.ca/sitemap.xml",
