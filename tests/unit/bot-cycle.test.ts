@@ -31,11 +31,13 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 vi.mock("@/lib/bot/config", () => ({
-  loadBotConfig: () => ({
+  getBotConfig: async () => ({
     enabledPlatforms: ["facebook", "kijiji"] as ("facebook" | "kijiji")[],
     maxJobsPerCycle: 10,
     maxAttempts: 3,
     operatorEmail: "test@example.com",
+    paceMinMs: 0,
+    paceMaxMs: 1,
   }),
 }));
 
@@ -413,11 +415,13 @@ describe("runCycle", () => {
       }),
     }));
     vi.doMock("@/lib/bot/config", () => ({
-      loadBotConfig: () => ({
+      getBotConfig: async () => ({
         enabledPlatforms: ["facebook"],
         maxJobsPerCycle: 1,
         maxAttempts: 3,
         operatorEmail: "test@example.com",
+        paceMinMs: 0,
+        paceMaxMs: 1,
       }),
     }));
 

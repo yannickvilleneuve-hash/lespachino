@@ -16,7 +16,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadBotConfig } from "@/lib/bot/config";
+import { getBotConfig } from "@/lib/bot/config";
+import type { BotConfig } from "@/lib/bot/config";
 import type { Job, MirrorListing, NormalizedListing, Platform } from "@/lib/bot/types";
 import { SessionExpiredError, FatalError } from "@/lib/bot/types";
 import { fetchActiveListings } from "@/lib/bot/lespac-reader";
@@ -42,8 +43,8 @@ export interface CycleSummary {
 }
 
 // Re-export pace so it is available as a testing seam from this module.
-// The underlying implementation honours BOT_PACE_MIN_MS / BOT_PACE_MAX_MS env
-// vars so tests can set them to near-zero.
+// The underlying implementation honours explicit args (from cfg) or falls back
+// to BOT_PACE_MIN_MS / BOT_PACE_MAX_MS env vars for zero-arg calls in tests.
 export { pace };
 
 // ---------------------------------------------------------------------------
@@ -122,7 +123,7 @@ async function handleSessionDeath(
 
 async function runJob(
   supabase: SupabaseClient,
-  cfg: ReturnType<typeof loadBotConfig>,
+  cfg: BotConfig,
   driver: (typeof DRIVERS)[Platform],
   ctx: unknown,
   job: Job,
@@ -239,7 +240,7 @@ async function runJob(
 
 export async function runCycle(): Promise<CycleSummary> {
   const supabase = createAdminClient();
-  const cfg = loadBotConfig();
+  const cfg = await getBotConfig(supabase);
 
   // Step 1: Pull active LesPAC listings and ensure they have a content hash.
   const rawListings = await fetchActiveListings();
@@ -283,7 +284,7 @@ export async function runCycle(): Promise<CycleSummary> {
       await runWithSession(platform, async (ctx) => {
         for (let i = 0; i < queued.length; i++) {
           const job = queued[i];
-          if (i > 0) await pace();
+          if (i > 0) await pace(cfg.paceMinMs, cfg.paceMaxMs);
           await runJob(supabase, cfg, driver, ctx, job, mirrorByKey, summary);
         }
       });

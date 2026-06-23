@@ -7,16 +7,18 @@
  */
 
 import { runCycle } from "@/lib/bot/cycle";
-import { loadBotConfig } from "@/lib/bot/config";
+import { getBotConfig } from "@/lib/bot/config";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Guard: only run when this file is the entry point (not imported by tests).
 if (require.main === module) {
   let stopping = false;
+  const supabase = createAdminClient();
 
   async function loop(): Promise<void> {
-    const cfg = loadBotConfig();
+    const initCfg = await getBotConfig(supabase);
     console.log(
-      `[bot] scheduler up — interval=${cfg.syncIntervalSec}s platforms=[${cfg.enabledPlatforms.join(",")}]`,
+      `[bot] scheduler up — interval=${initCfg.syncIntervalSec}s platforms=[${initCfg.enabledPlatforms.join(",")}]`,
     );
     while (!stopping) {
       const started = Date.now();
@@ -30,6 +32,8 @@ if (require.main === module) {
         // Never let the loop die on an unexpected throw.
         console.error("[bot] cycle threw:", err);
       }
+      // Re-read config each iteration so sync-interval changes apply without restart.
+      const cfg = await getBotConfig(supabase);
       const elapsed = Date.now() - started;
       const wait = Math.max(0, cfg.syncIntervalSec * 1000 - elapsed);
       await sleep(wait);

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/bot/config", () => ({
-  loadBotConfig: () => ({ enabledPlatforms: ["facebook", "kijiji"], syncIntervalSec: 3600 }),
+  getBotConfig: async () => ({ enabledPlatforms: ["facebook", "kijiji"], syncIntervalSec: 3600 }),
 }));
 
 // Must import AFTER vi.mock

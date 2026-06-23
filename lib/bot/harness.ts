@@ -16,10 +16,10 @@ export function sessionPaths(platform: Platform): SessionPaths {
   return { storageState: path.join(SESSIONS_DIR, `${platform}.json`) };
 }
 
-/** Randomized human-like delay (jitter). Bounds overridable for tests via env. */
-export function pace(): Promise<void> {
-  const min = Number(process.env.BOT_PACE_MIN_MS ?? 4000);
-  const max = Number(process.env.BOT_PACE_MAX_MS ?? 12000);
+/** Randomized human-like delay (jitter). Bounds overridable via args or env vars. */
+export function pace(minMs?: number, maxMs?: number): Promise<void> {
+  const min = minMs ?? Number(process.env.BOT_PACE_MIN_MS ?? 4000);
+  const max = maxMs ?? Number(process.env.BOT_PACE_MAX_MS ?? 12000);
   const ms = min + Math.random() * Math.max(0, max - min);
   return new Promise((r) => setTimeout(r, ms));
 }

@@ -13,7 +13,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadBotConfig } from "@/lib/bot/config";
+import { getBotConfig } from "@/lib/bot/config";
 import type { Platform } from "@/lib/bot/types";
 import type { PublicationRow } from "@/lib/bot/mirror-state";
 
@@ -106,7 +106,7 @@ export async function fetchBotDashboard(
   client?: SupabaseClient,
 ): Promise<BotDashboardData> {
   const supabase = client ?? createAdminClient();
-  const cfg = loadBotConfig();
+  const cfg = await getBotConfig(supabase);
 
   const [sessRes, listRes, pubRes, evtRes] = await Promise.all([
     supabase
