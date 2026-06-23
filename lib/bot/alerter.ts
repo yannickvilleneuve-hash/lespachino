@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendGraphEmail } from "@/lib/graph/mail";
-import { loadBotConfig } from "@/lib/bot/config";
+import { getBotConfig } from "@/lib/bot/config";
 
 const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -17,7 +17,8 @@ export async function alertOperator(
   subject: string,
   body: string,
 ): Promise<void> {
-  const { operatorEmail } = loadBotConfig();
+  const cfg = await getBotConfig(supabase);
+  const { operatorEmail } = cfg;
   if (!operatorEmail) {
     throw new Error("OPERATOR_EMAIL requis pour alertOperator");
   }

@@ -2,7 +2,8 @@ import Link from "next/link";
 import AppHeader from "@/app/app-header";
 import { requireAllowedUser } from "@/lib/auth/require-user";
 import { fetchBotDashboard } from "@/lib/bot/dashboard-queries";
-import { loadBotConfig } from "@/lib/bot/config";
+import { getBotConfig } from "@/lib/bot/config";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Platform } from "@/lib/bot/types";
 import BotControls from "./bot-controls";
 
@@ -16,8 +17,11 @@ const priceFmt = new Intl.NumberFormat("fr-CA", {
 
 export default async function BotDashboardPage() {
   const email = await requireAllowedUser();
-  const cfg = loadBotConfig();
-  const data = await fetchBotDashboard();
+  const supabase = createAdminClient();
+  const [cfg, data] = await Promise.all([
+    getBotConfig(supabase),
+    fetchBotDashboard(supabase),
+  ]);
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">

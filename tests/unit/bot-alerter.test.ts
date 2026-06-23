@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/graph/mail", () => ({ sendGraphEmail: vi.fn() }));
 vi.mock("@/lib/bot/config", () => ({
-  loadBotConfig: () => ({ operatorEmail: "ops@x.ca" }),
+  getBotConfig: vi.fn().mockResolvedValue({ operatorEmail: "ops@x.ca" }),
 }));
 
 import { alertOperator } from "@/lib/bot/alerter";
@@ -56,7 +56,9 @@ describe("alertOperator", () => {
 
   it("throws when no operator email is configured", async () => {
     vi.resetModules();
-    vi.doMock("@/lib/bot/config", () => ({ loadBotConfig: () => ({ operatorEmail: "" }) }));
+    vi.doMock("@/lib/bot/config", () => ({
+      getBotConfig: vi.fn().mockResolvedValue({ operatorEmail: "" }),
+    }));
     const { alertOperator: alert } = await import("@/lib/bot/alerter");
     const { supabase } = makeSupabase(null);
     await expect(alert(supabase, "k", "s", "b")).rejects.toThrow();
