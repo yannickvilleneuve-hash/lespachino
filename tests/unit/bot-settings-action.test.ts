@@ -6,10 +6,18 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/auth/current-editor", () => ({ currentEditor: () => Promise.resolve("tester") }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/auth/require-user", () => ({
+  requireAllowedUser: vi.fn(() => Promise.resolve("tester@example.com")),
+}));
 
 import { saveBotSettings } from "@/app/dashboard/bot/settings/actions";
+import { requireAllowedUser } from "@/lib/auth/require-user";
 
-beforeEach(() => update.mockClear());
+beforeEach(() => {
+  update.mockClear();
+  vi.mocked(requireAllowedUser).mockReset();
+  vi.mocked(requireAllowedUser).mockResolvedValue("tester@example.com");
+});
 
 const valid = {
   enabledPlatforms: ["facebook"],
@@ -34,6 +42,13 @@ describe("saveBotSettings", () => {
 
   it("rejects invalid input without writing", async () => {
     const res = await saveBotSettings({ ...valid, operatorEmail: "nope" });
+    expect(res.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("returns {ok:false} and does not write when unauthenticated", async () => {
+    vi.mocked(requireAllowedUser).mockRejectedValue(new Error("Non authentifié"));
+    const res = await saveBotSettings(valid);
     expect(res.ok).toBe(false);
     expect(update).not.toHaveBeenCalled();
   });
