@@ -178,6 +178,14 @@ export default async function BotDashboardPage() {
             nextSyncAt={data.nextSyncAt}
             platforms={cfg.enabledPlatforms}
           />
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <Link
+              href="/dashboard/bot/settings"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Réglages →
+            </Link>
+          </div>
         </section>
 
         <p className="px-1 text-xs text-slate-400">Connecté : {email}</p>
