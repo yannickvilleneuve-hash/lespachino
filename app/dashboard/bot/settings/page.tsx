@@ -14,7 +14,7 @@ function mapPace(minMs: number, maxMs: number): { paceMinMs: number; paceMaxMs: 
   }
   // No exact match — round to closest choice
   const closest = PACE_CHOICES.reduce((best, c) => {
-    const dBest = Math.abs(c.minMs - minMs) + Math.abs(c.maxMs - maxMs);
+    const dBest = Math.abs(best.minMs - minMs) + Math.abs(best.maxMs - maxMs);
     const dC = Math.abs(c.minMs - minMs) + Math.abs(c.maxMs - maxMs);
     return dC < dBest ? c : best;
   });

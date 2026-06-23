@@ -155,7 +155,7 @@ export default function SettingsForm({ initial }: { initial: BotSettingsInput })
           min={1}
           max={100}
           value={maxJobsPerCycle}
-          onChange={(e) => setMaxJobsPerCycle(Number(e.target.value))}
+          onChange={(e) => { const n = parseInt(e.target.value, 10); setMaxJobsPerCycle(Number.isFinite(n) ? n : initial.maxJobsPerCycle); }}
           disabled={pending}
           className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50"
         />
