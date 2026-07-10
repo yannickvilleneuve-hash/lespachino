@@ -1,18 +1,36 @@
 # Setup feeds externes — Meta Commerce Manager + Google Merchant Center
 
-URLs publiques actuelles (via Tailscale Funnel):
+> **Réécrit 2026-07-10.** Les feeds sont maintenant alimentés par LesPAC (source de
+> vérité), plus par SERTI/Supabase. Les anciennes URLs `/feed/*` n'existent plus.
+
+URLs publiques actuelles (Tailscale Funnel, port 8443):
 
 | Feed | URL | Usage |
 |---|---|---|
-| JSON natif | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/native.json` | Debug, intégrations custom |
-| Google VLA (canonical) | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/vehicles.xml` | Google Merchant Center, agrégateurs |
-| Facebook Marketplace XML | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/facebook.xml` | Meta Commerce Manager (même contenu que vehicles.xml) |
-| Facebook Marketplace CSV | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/facebook.csv` | Fallback si CSV seulement accepté |
-| Sandhills CSV | `https://feeds.hinochicoutimi.com/feed/sandhills.csv` | Import planifié Sandhills / MarketBook / TruckPaper |
+| Meta Vehicles | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feeds/meta.xml` | Meta Commerce Manager |
+| Google VLA | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feeds/vehicles.xml` | Google Merchant Center, agrégateurs |
+| Page véhicule | `.../vehicule/<listingId>` | Cible crawlée par les deux feeds |
 
-Quand le domaine `camion-hino.ca` sera DNS-configurable, ces URLs changeront
-pour `https://camion-hino.ca/feed/*`. Mets à jour NEXT_PUBLIC_SITE_URL +
-les URLs dans les dashboards externes.
+Le Funnel n'expose que `/feeds`, `/vehicule` et `/_next`. **Le dashboard n'a plus
+d'authentification** (retirée dans `4b6fb9e`) et reste volontairement hors du Funnel:
+il s'atteint sur `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:9443/dashboard`,
+tailnet seulement. Ne jamais monter `/` sur le port 8443.
+
+L'origine émise dans les feeds vient de `FEED_ORIGIN` (`.env.local`). Elle doit être
+joignable **depuis l'extérieur du tailnet**: sinon Meta avale le feed puis échoue les
+20 pages d'atterrissage, et le diagnostic n'apparaît que des jours plus tard.
+`NEXT_PUBLIC_SITE_URL` pointe encore vers `feeds.hinochicoutimi.com`, qui répond 525.
+
+Vérifier après tout changement d'exposition:
+
+```bash
+curl -sI https://<origin>/feeds/meta.xml     # 200, application/xml
+curl -sI https://<origin>/vehicule/<id>      # 200
+curl -sI https://<origin>/dashboard          # 404 — sinon l'admin est public
+```
+
+Diagnostic dans les en-têtes: `X-Feed-Total`, `X-Feed-Included`, `X-Feed-Skipped`,
+`X-Feed-Warnings`. Le détail (quelle annonce, pourquoi) part dans les logs pm2.
 
 ---
 
@@ -33,7 +51,7 @@ les URLs dans les dashboards externes.
 2. Choisis **Scheduled feed**
 3. **Data feed URL**: colle
    ```
-   https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/facebook.xml
+   https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feeds/meta.xml
    ```
 4. Username/Password: laisse vide (public)
 5. **Upload hours**: Daily (ou Hourly pour refresh rapide)
