@@ -2,7 +2,8 @@
  *  https://www.lespac.com/public/listing/import/technical-documentation */
 
 export type LespacState = "NEW" | "USED" | "N/A";
-export type LespacStatus = "ONLINE" | "PENDING" | "DEACTIVATED";
+/** `EXPIRED` is undocumented but returned in practice (2 of 27 listings, 2026-07-10). */
+export type LespacStatus = "ONLINE" | "PENDING" | "DEACTIVATED" | "EXPIRED";
 export type LespacContactType = "STANDARD" | "COURTIER";
 
 /** Clés en français, valeurs typées string (JSON dict).
@@ -24,7 +25,12 @@ export interface LespacContact {
 
 export interface LespacListing {
   listingId: number | null;
-  vendorId: string;
+  /**
+   * Our own key, set only on listings pacman upserted through the API.
+   * Null on every ad the seller posted by hand — 20 of 25 live listings on
+   * 2026-07-10. Never anchor anything public on this.
+   */
+  vendorId: string | null;
   category: string;
   title: string;
   description?: string | null;
@@ -44,7 +50,8 @@ export interface LespacListing {
 
 export interface LespacListingSummary {
   listingId: number;
-  vendorId: string;
+  /** Null unless pacman created the listing. See `LespacListing.vendorId`. */
+  vendorId: string | null;
   title: string;
   state: LespacState;
   status: LespacStatus;

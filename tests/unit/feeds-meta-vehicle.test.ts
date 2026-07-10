@@ -1,0 +1,249 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildMetaVehicleFeed,
+  selectMetaEligible,
+  formatMetaPrice,
+  hasPlausibleOdometer,
+} from "@/lib/feeds/meta-vehicle";
+import type { CatalogVehicle } from "@/lib/catalog/types";
+import type { DealerAddress } from "@/lib/dealer/config";
+
+const address: DealerAddress = {
+  addr1: "123 rue Test",
+  city: "Chicoutimi",
+  region: "QC",
+  postalCode: "G7H 1A1",
+  country: "CA",
+};
+
+function vehicle(over: Partial<CatalogVehicle> = {}): CatalogVehicle {
+  return {
+    id: "223612404",
+    title: "Isuzu NRR 2022 avec Fourgon de 20 pieds",
+    description: "Bon état",
+    priceCad: 39733,
+    year: 2022,
+    make: "Isuzu",
+    model: "NRR",
+    km: 249000,
+    isNew: false,
+    isVehicle: true,
+    bodyStyle: "TRUCK",
+    exteriorColor: "Blanc",
+    transmission: "AUTOMATIC",
+    fuelType: "GASOLINE",
+    photoUrls: ["https://cdn.lespac.com/a.jpg", "https://cdn.lespac.com/b.jpg"],
+    ...over,
+  };
+}
+
+const origin = "https://feeds.hinochicoutimi.com";
+
+describe("formatMetaPrice", () => {
+  it("emits a fixed-point amount with the currency code", () => {
+    expect(formatMetaPrice(39733)).toBe("39733.00 CAD");
+    expect(formatMetaPrice(39733.5)).toBe("39733.50 CAD");
+  });
+});
+
+describe("selectMetaEligible", () => {
+  it("keeps a complete vehicle", () => {
+    const { eligible, skipped } = selectMetaEligible([vehicle()]);
+    expect(eligible).toHaveLength(1);
+    expect(skipped).toEqual([]);
+  });
+
+  it("drops a cargo box before it can pose as a truck", () => {
+    const { eligible, skipped } = selectMetaEligible([
+      vehicle({ id: "221376020", isVehicle: false }),
+    ]);
+    expect(eligible).toEqual([]);
+    expect(skipped).toEqual([
+      { id: "221376020", reason: "not a vehicle (accessory / trailer category)" },
+    ]);
+  });
+
+  it("drops a 'prix à discuter' listing", () => {
+    const { skipped } = selectMetaEligible([
+      vehicle({ id: "215367807", priceCad: null }),
+    ]);
+    expect(skipped).toEqual([
+      { id: "215367807", reason: "no price (prix à discuter)" },
+    ]);
+  });
+
+  it("drops a photoless listing", () => {
+    const { skipped } = selectMetaEligible([vehicle({ id: "x", photoUrls: [] })]);
+    expect(skipped).toEqual([{ id: "x", reason: "no photo" }]);
+  });
+
+  it("drops a listing with no year", () => {
+    const { skipped } = selectMetaEligible([vehicle({ id: "x", year: null })]);
+    expect(skipped).toEqual([{ id: "x", reason: "no year" }]);
+  });
+
+  it("drops a listing with no make", () => {
+    const { skipped } = selectMetaEligible([vehicle({ id: "x", make: "" })]);
+    expect(skipped).toEqual([{ id: "x", reason: "no make" }]);
+  });
+
+  it("reports one reason per rejected listing, not a total", () => {
+    const { eligible, skipped } = selectMetaEligible([
+      vehicle({ id: "a" }),
+      vehicle({ id: "b", isVehicle: false }),
+      vehicle({ id: "c", priceCad: null }),
+    ]);
+    expect(eligible.map((v) => v.id)).toEqual(["a"]);
+    expect(skipped.map((s) => s.id)).toEqual(["b", "c"]);
+  });
+
+  it("publishes a truck with a placeholder odometer, but warns", () => {
+    // Listing 222013230: a 2008 F750 with "Kilométrage: 10".
+    const { eligible, skipped, warnings } = selectMetaEligible([
+      vehicle({ id: "222013230", year: 2008, km: 10 }),
+    ]);
+    expect(eligible.map((v) => v.id)).toEqual(["222013230"]);
+    expect(skipped).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].warning).toContain("implausible odometer");
+  });
+
+  it("does not warn when the odometer is simply absent", () => {
+    const { warnings } = selectMetaEligible([vehicle({ km: null })]);
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe("hasPlausibleOdometer", () => {
+  it("rejects a sub-100 km reading on a used vehicle", () => {
+    expect(hasPlausibleOdometer(vehicle({ km: 10, isNew: false }))).toBe(false);
+    expect(hasPlausibleOdometer(vehicle({ km: 0, isNew: false }))).toBe(false);
+  });
+
+  it("accepts a sub-100 km reading on a new vehicle", () => {
+    expect(hasPlausibleOdometer(vehicle({ km: 0, isNew: true }))).toBe(true);
+  });
+
+  it("accepts a real odometer", () => {
+    expect(hasPlausibleOdometer(vehicle({ km: 249000 }))).toBe(true);
+  });
+
+  it("treats a missing odometer as not plausible (nothing to emit)", () => {
+    expect(hasPlausibleOdometer(vehicle({ km: null }))).toBe(false);
+  });
+});
+
+describe("buildMetaVehicleFeed", () => {
+  it("uses listingId as vehicle_id and in the crawlable url", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
+    expect(xml).toContain("<vehicle_id>223612404</vehicle_id>");
+    expect(xml).toContain(`<url>${origin}/vehicule/223612404</url>`);
+  });
+
+  it("percent-encodes an id containing a slash", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [vehicle({ id: "A/B" })],
+      address,
+    });
+    expect(xml).toContain(`<url>${origin}/vehicule/A%2FB</url>`);
+  });
+
+  it("uses the first photo as image_link", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
+    expect(xml).toContain("<image_link>https://cdn.lespac.com/a.jpg</image_link>");
+  });
+
+  it("emits mileage in KM", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
+    expect(xml).toContain("<value>249000</value>");
+    expect(xml).toContain("<unit>KM</unit>");
+  });
+
+  it("emits the optional Meta fields when known", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
+    expect(xml).toContain("<exterior_color>Blanc</exterior_color>");
+    expect(xml).toContain("<transmission>AUTOMATIC</transmission>");
+    expect(xml).toContain("<fuel_type>GASOLINE</fuel_type>");
+  });
+
+  it("omits optional fields entirely rather than emitting empty tags", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [
+        vehicle({
+          km: null,
+          exteriorColor: null,
+          transmission: null,
+          fuelType: null,
+        }),
+      ],
+      address,
+    });
+    expect(xml).not.toContain("<mileage>");
+    expect(xml).not.toContain("<exterior_color>");
+    expect(xml).not.toContain("<transmission>");
+    expect(xml).not.toContain("<fuel_type>");
+  });
+
+  it("omits a placeholder odometer instead of asserting 10 km on a 2008 truck", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [vehicle({ id: "222013230", year: 2008, km: 10 })],
+      address,
+    });
+    expect(xml).toContain("<vehicle_id>222013230</vehicle_id>");
+    expect(xml).not.toContain("<mileage>");
+  });
+
+  it("maps a new vehicle to NEW/new", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [vehicle({ isNew: true })],
+      address,
+    });
+    expect(xml).toContain("<state_of_vehicle>NEW</state_of_vehicle>");
+    expect(xml).toContain("<condition>new</condition>");
+  });
+
+  it("carries the body style through", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [vehicle({ bodyStyle: "SUV" })],
+      address,
+    });
+    expect(xml).toContain("<body_style>SUV</body_style>");
+  });
+
+  it("escapes XML metacharacters in the description", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [vehicle({ description: 'Cab & "Chassis" <b>' })],
+      address,
+    });
+    expect(xml).toContain("Cab &amp; &quot;Chassis&quot; &lt;b&gt;");
+    expect(xml).not.toContain("<b>");
+  });
+
+  it("falls back to the built title when the description is empty", () => {
+    const xml = buildMetaVehicleFeed({
+      origin,
+      vehicles: [vehicle({ description: "" })],
+      address,
+    });
+    expect(xml).toContain("<description>2022 Isuzu NRR</description>");
+  });
+
+  it("emits the dealer address components", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
+    expect(xml).toContain('<component name="city">Chicoutimi</component>');
+    expect(xml).toContain('<component name="country">CA</component>');
+  });
+
+  it("renders a well-formed empty channel when there are no vehicles", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [], address });
+    expect(xml).toContain('<rss version="2.0">');
+    expect(xml).toContain("</channel>");
+    expect(xml).not.toContain("<item>");
+  });
+});
