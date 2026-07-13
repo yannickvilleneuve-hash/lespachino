@@ -11,12 +11,13 @@ type FeedBuilder = (opts: {
 
 /**
  * Every vehicle feed does the same four things: resolve the public origin, pull
- * the LesPAC catalog, drop what the platform would reject, and render XML. Only
- * the renderer differs.
+ * the LesPAC catalog, drop what the platform would reject, and render the body.
+ * Only the renderer and its content type differ (RSS XML vs CSV).
  */
 export async function serveFeed(
   label: string,
   build: FeedBuilder,
+  contentType = "application/xml; charset=utf-8",
 ): Promise<Response> {
   const h = await headers();
   const origin = resolveFeedOrigin(
@@ -47,7 +48,7 @@ export async function serveFeed(
 
   return new Response(xml, {
     headers: {
-      "Content-Type": "application/xml; charset=utf-8",
+      "Content-Type": contentType,
       "Cache-Control": "public, max-age=900, s-maxage=900",
       "X-Feed-Total": String(catalog.length),
       "X-Feed-Included": String(eligible.length),

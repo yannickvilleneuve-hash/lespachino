@@ -38,10 +38,17 @@ const origin = "https://feeds.hinochicoutimi.com";
 
 
 describe("buildMetaVehicleFeed", () => {
+  it("declares the Google base namespace Meta needs to recognize the feed", () => {
+    const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
+    expect(xml).toContain(
+      '<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">',
+    );
+  });
+
   it("uses listingId as vehicle_id and in the crawlable url", () => {
     const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
-    expect(xml).toContain("<vehicle_id>223612404</vehicle_id>");
-    expect(xml).toContain(`<url>${origin}/vehicule/223612404</url>`);
+    expect(xml).toContain("<g:vehicle_id>223612404</g:vehicle_id>");
+    expect(xml).toContain(`<g:url>${origin}/vehicule/223612404</g:url>`);
   });
 
   it("percent-encodes an id containing a slash", () => {
@@ -50,25 +57,29 @@ describe("buildMetaVehicleFeed", () => {
       vehicles: [vehicle({ id: "A/B" })],
       address,
     });
-    expect(xml).toContain(`<url>${origin}/vehicule/A%2FB</url>`);
+    expect(xml).toContain(`<g:url>${origin}/vehicule/A%2FB</g:url>`);
   });
 
-  it("uses the first photo as image_link", () => {
+  it("emits every photo as a g:image/g:url, hero first", () => {
     const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
-    expect(xml).toContain("<image_link>https://cdn.lespac.com/a.jpg</image_link>");
+    expect(xml).toContain(
+      "<g:image>\n      <g:url>https://cdn.lespac.com/a.jpg</g:url>\n    </g:image>",
+    );
+    expect(xml).toContain("<g:url>https://cdn.lespac.com/b.jpg</g:url>");
+    expect(xml.indexOf("a.jpg")).toBeLessThan(xml.indexOf("b.jpg"));
   });
 
-  it("emits mileage in KM", () => {
+  it("emits mileage in KILOMETERS (Meta enum, not KM)", () => {
     const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
-    expect(xml).toContain("<value>249000</value>");
-    expect(xml).toContain("<unit>KM</unit>");
+    expect(xml).toContain("<g:value>249000</g:value>");
+    expect(xml).toContain("<g:unit>KILOMETERS</g:unit>");
   });
 
   it("emits the optional Meta fields when known", () => {
     const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
-    expect(xml).toContain("<exterior_color>Blanc</exterior_color>");
-    expect(xml).toContain("<transmission>AUTOMATIC</transmission>");
-    expect(xml).toContain("<fuel_type>GASOLINE</fuel_type>");
+    expect(xml).toContain("<g:exterior_color>Blanc</g:exterior_color>");
+    expect(xml).toContain("<g:transmission>AUTOMATIC</g:transmission>");
+    expect(xml).toContain("<g:fuel_type>GASOLINE</g:fuel_type>");
   });
 
   it("omits optional fields entirely rather than emitting empty tags", () => {
@@ -84,10 +95,10 @@ describe("buildMetaVehicleFeed", () => {
       ],
       address,
     });
-    expect(xml).not.toContain("<mileage>");
-    expect(xml).not.toContain("<exterior_color>");
-    expect(xml).not.toContain("<transmission>");
-    expect(xml).not.toContain("<fuel_type>");
+    expect(xml).not.toContain("<g:mileage>");
+    expect(xml).not.toContain("<g:exterior_color>");
+    expect(xml).not.toContain("<g:transmission>");
+    expect(xml).not.toContain("<g:fuel_type>");
   });
 
   it("omits a placeholder odometer instead of asserting 10 km on a 2008 truck", () => {
@@ -96,18 +107,19 @@ describe("buildMetaVehicleFeed", () => {
       vehicles: [vehicle({ id: "222013230", year: 2008, km: 10 })],
       address,
     });
-    expect(xml).toContain("<vehicle_id>222013230</vehicle_id>");
-    expect(xml).not.toContain("<mileage>");
+    expect(xml).toContain("<g:vehicle_id>222013230</g:vehicle_id>");
+    expect(xml).not.toContain("<g:mileage>");
   });
 
-  it("maps a new vehicle to NEW/new", () => {
+  it("maps a new vehicle to state_of_vehicle NEW without a bogus condition", () => {
     const xml = buildMetaVehicleFeed({
       origin,
       vehicles: [vehicle({ isNew: true })],
       address,
     });
-    expect(xml).toContain("<state_of_vehicle>NEW</state_of_vehicle>");
-    expect(xml).toContain("<condition>new</condition>");
+    expect(xml).toContain("<g:state_of_vehicle>NEW</g:state_of_vehicle>");
+    // condition's enum is EXCELLENT/GOOD/... — new/used lives in state_of_vehicle.
+    expect(xml).not.toContain("<g:condition>");
   });
 
   it("carries the body style through", () => {
@@ -116,7 +128,7 @@ describe("buildMetaVehicleFeed", () => {
       vehicles: [vehicle({ bodyStyle: "SUV" })],
       address,
     });
-    expect(xml).toContain("<body_style>SUV</body_style>");
+    expect(xml).toContain("<g:body_style>SUV</g:body_style>");
   });
 
   it("escapes XML metacharacters in the description", () => {
@@ -140,13 +152,15 @@ describe("buildMetaVehicleFeed", () => {
 
   it("emits the dealer address components", () => {
     const xml = buildMetaVehicleFeed({ origin, vehicles: [vehicle()], address });
-    expect(xml).toContain('<component name="city">Chicoutimi</component>');
-    expect(xml).toContain('<component name="country">CA</component>');
+    expect(xml).toContain('<g:component name="city">Chicoutimi</g:component>');
+    expect(xml).toContain('<g:component name="country">CA</g:component>');
   });
 
   it("renders a well-formed empty channel when there are no vehicles", () => {
     const xml = buildMetaVehicleFeed({ origin, vehicles: [], address });
-    expect(xml).toContain('<rss version="2.0">');
+    expect(xml).toContain(
+      '<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">',
+    );
     expect(xml).toContain("</channel>");
     expect(xml).not.toContain("<item>");
   });

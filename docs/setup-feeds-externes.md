@@ -7,9 +7,16 @@ URLs publiques actuelles (Cloudflare → Tailscale Funnel):
 
 | Feed | URL | Usage |
 |---|---|---|
-| Meta Vehicles | `https://feeds.hinochicoutimi.com/feeds/meta.xml` | Meta Commerce Manager |
+| Meta Vehicles | `https://feeds.hinochicoutimi.com/feeds/meta.csv` | Meta Commerce Manager |
 | Google VLA | `https://feeds.hinochicoutimi.com/feeds/vehicles.xml` | Google Merchant Center, agrégateurs |
 | Page véhicule | `https://feeds.hinochicoutimi.com/vehicule/<listingId>` | Cible crawlée par les deux feeds |
+
+> **Meta = CSV, pas RSS.** Le catalogue Véhicules de Meta rejette un RSS pourtant
+> valide (`g:`-namespacé) avec un "format de fichier non pris en charge" et un
+> rapport d'erreurs vide (constaté 2026-07-13). Il ingère le CSV sans problème.
+> `meta.xml` (RSS) existe encore mais n'est consommé par personne; Google, lui,
+> exige du RSS (`vehicles.xml`). Colonnes CSV + encodage `image`/`address` en JSON:
+> voir `lib/feeds/meta-vehicle-csv.ts`.
 
 Fallback direct si Cloudflare tombe: `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/...` (Funnel brut, mêmes chemins).
 
@@ -54,7 +61,7 @@ Diagnostic dans les en-têtes: `X-Feed-Total`, `X-Feed-Included`, `X-Feed-Skippe
 2. Choisis **Scheduled feed**
 3. **Data feed URL**: colle
    ```
-   https://feeds.hinochicoutimi.com/feeds/meta.xml
+   https://feeds.hinochicoutimi.com/feeds/meta.csv
    ```
 4. Username/Password: laisse vide (public)
 5. **Upload hours**: Daily (ou Hourly pour refresh rapide)

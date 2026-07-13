@@ -117,13 +117,19 @@ describe("the two feeds are not interchangeable", () => {
     const meta = buildMetaVehicleFeed({ origin, vehicles: v, address });
     const google = buildGoogleVlaFeed({ origin, vehicles: v, address });
 
-    expect(meta).toContain("<url>");
-    expect(google).not.toContain("<url>");
+    // Meta's vehicle URL field is `url`; Google's is the RSS-core `link`.
+    expect(meta).toContain("<g:url>");
+    expect(google).not.toContain("<g:url>");
+    expect(google).toContain("<link>");
 
-    expect(meta).toContain("<availability>available</availability>");
+    expect(meta).toContain("<g:availability>available</g:availability>");
     expect(google).toContain("<g:availability>in stock</g:availability>");
 
-    expect(meta).not.toContain("xmlns:g");
+    // Both are g:-namespaced RSS, but Meta nests images and drops condition.
+    expect(meta).toContain("xmlns:g");
     expect(google).toContain("xmlns:g");
+    expect(meta).toContain("<g:image>");
+    expect(google).toContain("<g:image_link>");
+    expect(meta).not.toContain("<g:condition>");
   });
 });
