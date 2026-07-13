@@ -3,13 +3,15 @@
 > **Réécrit 2026-07-10.** Les feeds sont maintenant alimentés par LesPAC (source de
 > vérité), plus par SERTI/Supabase. Les anciennes URLs `/feed/*` n'existent plus.
 
-URLs publiques actuelles (Tailscale Funnel, port 8443):
+URLs publiques actuelles (Cloudflare → Tailscale Funnel):
 
 | Feed | URL | Usage |
 |---|---|---|
-| Meta Vehicles | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feeds/meta.xml` | Meta Commerce Manager |
-| Google VLA | `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feeds/vehicles.xml` | Google Merchant Center, agrégateurs |
-| Page véhicule | `.../vehicule/<listingId>` | Cible crawlée par les deux feeds |
+| Meta Vehicles | `https://feeds.hinochicoutimi.com/feeds/meta.xml` | Meta Commerce Manager |
+| Google VLA | `https://feeds.hinochicoutimi.com/feeds/vehicles.xml` | Google Merchant Center, agrégateurs |
+| Page véhicule | `https://feeds.hinochicoutimi.com/vehicule/<listingId>` | Cible crawlée par les deux feeds |
+
+Fallback direct si Cloudflare tombe: `https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/...` (Funnel brut, mêmes chemins).
 
 Le Funnel n'expose que `/feeds`, `/vehicule` et `/_next`. **Le dashboard n'a plus
 d'authentification** (retirée dans `4b6fb9e`) et reste volontairement hors du Funnel:
@@ -19,7 +21,8 @@ tailnet seulement. Ne jamais monter `/` sur le port 8443.
 L'origine émise dans les feeds vient de `FEED_ORIGIN` (`.env.local`). Elle doit être
 joignable **depuis l'extérieur du tailnet**: sinon Meta avale le feed puis échoue les
 20 pages d'atterrissage, et le diagnostic n'apparaît que des jours plus tard.
-`NEXT_PUBLIC_SITE_URL` pointe encore vers `feeds.hinochicoutimi.com`, qui répond 525.
+`FEED_ORIGIN` = `https://feeds.hinochicoutimi.com` (Cloudflare répond 200, le 525
+CF↔origin est résolu depuis le 2026-07-13).
 
 Vérifier après tout changement d'exposition:
 
@@ -51,7 +54,7 @@ Diagnostic dans les en-têtes: `X-Feed-Total`, `X-Feed-Included`, `X-Feed-Skippe
 2. Choisis **Scheduled feed**
 3. **Data feed URL**: colle
    ```
-   https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feeds/meta.xml
+   https://feeds.hinochicoutimi.com/feeds/meta.xml
    ```
 4. Username/Password: laisse vide (public)
 5. **Upload hours**: Daily (ou Hourly pour refresh rapide)
@@ -95,7 +98,7 @@ Diagnostic dans les en-têtes: `X-Feed-Total`, `X-Feed-Included`, `X-Feed-Skippe
 5. Input method: **Scheduled fetch**
 6. **File URL**:
    ```
-   https://hino1-thinkcentre-m93p.tail0e1ea8.ts.net:8443/feed/vehicles.xml
+   https://feeds.hinochicoutimi.com/feeds/vehicles.xml
    ```
 7. Frequency: Daily · 07:00 Toronto
 8. Save + wait for first fetch
@@ -124,16 +127,18 @@ Si pas de trafic après 48h:
 
 ---
 
-## 4. Migration URL finale
+## 4. Migration URL finale — FAIT (2026-07-13)
 
-Quand `camion-hino.ca` DNS sera débloquée (accès GoDaddy obtenu):
+Le domaine brandé `feeds.hinochicoutimi.com` (Cloudflare → Funnel) est en place et
+`FEED_ORIGIN` pointe dessus. Les feeds émettent des URLs `feeds.hinochicoutimi.com/...`
+cohérentes entre `<url>` du feed et la page véhicule crawlée.
 
-1. Dans `.env.local`: `NEXT_PUBLIC_SITE_URL=https://camion-hino.ca`
+Pour changer de domaine plus tard:
+
+1. Dans `.env.local`: `FEED_ORIGIN=https://<nouveau-domaine>`
 2. `pm2 restart pacman --update-env`
-3. Dans Meta Commerce Manager → Data Sources → Edit → change URL
+3. Meta Commerce Manager → Data Sources → Edit → change URL
 4. Idem Google Merchant Center → Feeds → Settings → URL
-
-Les feeds regénéreront avec nouvelles URLs `/vehicule/[unit]`.
 
 ---
 
