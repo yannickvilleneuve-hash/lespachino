@@ -2,11 +2,15 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Oswald } from "next/font/google";
 import { getVehicleById } from "@/lib/catalog/fetch";
 import { getDealerConfig, telHref } from "@/lib/dealer/config";
 import type { CatalogVehicle } from "@/lib/catalog/types";
+import { LeadForm } from "./LeadForm";
 
 export const revalidate = 900;
+
+const oswald = Oswald({ subsets: ["latin"], weight: ["500", "600", "700"] });
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -32,13 +36,11 @@ function displayPrice(priceCad: number | null): string {
 const TRANSMISSION_FR = { AUTOMATIC: "Automatique", MANUAL: "Manuelle" } as const;
 const FUEL_FR = { DIESEL: "Diesel", GASOLINE: "Essence" } as const;
 
+/** Compact spec chips — the numbers a truck buyer scans first. */
 function specs(v: CatalogVehicle): Array<[string, string]> {
   const rows: Array<[string, string]> = [["État", v.isNew ? "Neuf" : "Usagé"]];
   if (v.km != null) {
-    rows.push([
-      "Kilométrage",
-      `${new Intl.NumberFormat("fr-CA").format(v.km)} km`,
-    ]);
+    rows.push(["Kilométrage", `${new Intl.NumberFormat("fr-CA").format(v.km)} km`]);
   }
   if (v.transmission) rows.push(["Transmission", TRANSMISSION_FR[v.transmission]]);
   if (v.fuelType) rows.push(["Carburant", FUEL_FR[v.fuelType]]);
@@ -72,68 +74,100 @@ export default async function VehiclePage({ params }: PageProps) {
   const dealer = getDealerConfig();
   const title = displayTitle(vehicle);
   const tel = telHref(dealer.contact.phone);
+  const hero = vehicle.photoUrls[0];
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-
-      <p className="mt-2 text-2xl font-semibold text-emerald-700">
-        {displayPrice(vehicle.priceCad)}
-      </p>
-
-      <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-600">
-        {specs(vehicle).map(([label, value]) => (
-          <div key={label}>
-            <dt className="inline font-medium">{label}&nbsp;: </dt>
-            <dd className="inline">{value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      {vehicle.photoUrls.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {vehicle.photoUrls.map((url: string, i: number) => (
-            <Image
-              key={url}
-              src={url}
-              alt={`${title} — photo ${i + 1}`}
-              width={800}
-              height={600}
-              // The hero is above the fold and is what Meta scrapes for og:image.
-              priority={i === 0}
-              className="w-full rounded-lg object-cover"
-              unoptimized
-            />
-          ))}
+    <main
+      className={`${oswald.className} relative flex min-h-screen flex-col bg-[#0e0e0f] text-white lg:h-screen lg:overflow-hidden`}
+    >
+      {/* Brand bar — echoes camion-hino.ca: black, red block, phone at right. */}
+      <header className="z-10 flex items-center justify-between border-b border-white/10 px-5 py-3 sm:px-8">
+        <div className="flex items-center gap-3">
+          <span className="block h-6 w-6 bg-[#ed1c24]" aria-hidden />
+          <span className="text-sm font-bold uppercase leading-none tracking-widest sm:text-base">
+            Centre du Camion
+            <span className="block text-[10px] font-medium tracking-[0.35em] text-white/50">
+              Chicoutimi
+            </span>
+          </span>
         </div>
-      )}
-
-      {vehicle.description && (
-        <section className="mt-8">
-          <h2 className="text-lg font-semibold">Description</h2>
-          <p className="mt-2 whitespace-pre-line text-gray-800">
-            {vehicle.description}
-          </p>
-        </section>
-      )}
-
-      <section className="mt-8 rounded-lg border border-gray-200 p-4">
-        <h2 className="text-lg font-semibold">{dealer.name}</h2>
-        <address className="mt-1 not-italic text-gray-700">
-          {dealer.address.addr1}
-          <br />
-          {dealer.address.city}, {dealer.address.region}{" "}
-          {dealer.address.postalCode}
-        </address>
-        {tel && (
+        {dealer.contact.phone && (
           <a
-            href={tel}
-            className="mt-3 inline-block rounded-md bg-gray-900 px-4 py-2 font-medium text-white"
+            href={tel ?? undefined}
+            className="text-right text-sm font-semibold tracking-wide text-white/80 transition hover:text-white sm:text-base"
           >
+            <span className="hidden text-[10px] uppercase tracking-[0.3em] text-white/40 sm:block">
+              Contactez-nous
+            </span>
             {dealer.contact.phone}
           </a>
         )}
-      </section>
+      </header>
+
+      <div className="grid flex-1 lg:grid-cols-[1.15fr_1fr]">
+        {/* LEFT — single hero photo, title + price slab overlaid. */}
+        <section className="relative min-h-[42vh] overflow-hidden lg:min-h-0">
+          {hero && (
+            <Image
+              src={hero}
+              alt={title}
+              fill
+              priority
+              unoptimized
+              className="object-cover"
+              sizes="(min-width: 1024px) 55vw, 100vw"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0f] via-[#0e0e0f]/40 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
+            <h1 className="text-3xl font-bold uppercase leading-[0.95] tracking-tight sm:text-5xl">
+              {title}
+            </h1>
+            <p className="mt-4">
+              <span className="inline-block bg-[#ed1c24] px-4 py-1.5 text-2xl font-bold tracking-tight sm:text-3xl">
+                {displayPrice(vehicle.priceCad)}
+              </span>
+            </p>
+            <dl className="mt-4 flex flex-wrap gap-2">
+              {specs(vehicle).map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1 backdrop-blur-sm"
+                >
+                  <dt className="inline text-[10px] uppercase tracking-widest text-white/45">
+                    {label}&nbsp;
+                  </dt>
+                  <dd className="inline text-sm font-semibold text-white">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        {/* RIGHT — contact panel. */}
+        <section className="flex flex-col justify-center gap-4 bg-[#141416] px-5 py-8 sm:px-10 lg:overflow-y-auto">
+          <div>
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ed1c24]">
+              <span className="block h-3 w-3 bg-[#ed1c24]" aria-hidden />
+              Ce camion vous intéresse?
+            </p>
+            <h2 className="mt-2 text-2xl font-bold uppercase leading-tight tracking-tight sm:text-3xl">
+              Écrivez-nous, on vous répond vite
+            </h2>
+          </div>
+
+          <LeadForm unit={vehicle.id} title={title} />
+
+          {tel && (
+            <p className="text-sm text-white/45">
+              Ou appelez-nous&nbsp;:{" "}
+              <a href={tel} className="font-semibold text-white/80 hover:text-white">
+                {dealer.contact.phone}
+              </a>
+            </p>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
