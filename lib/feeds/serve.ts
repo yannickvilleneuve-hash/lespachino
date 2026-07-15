@@ -18,6 +18,12 @@ export async function serveFeed(
   label: string,
   build: FeedBuilder,
   contentType = "application/xml; charset=utf-8",
+  /**
+   * Optional predicate applied after eligibility. Used to split the catalog
+   * across surfaces — e.g. new trucks in the main Meta feed, used trucks in a
+   * dedicated AIA feed so they never reach Facebook's organic Marketplace.
+   */
+  filter?: (v: CatalogVehicle) => boolean,
 ): Promise<Response> {
   const h = await headers();
   const origin = resolveFeedOrigin(
@@ -31,7 +37,8 @@ export async function serveFeed(
 
   const catalog = await fetchCatalog();
   const { eligible, skipped, warnings } = selectEligible(catalog);
-  const xml = build({ origin, vehicles: eligible });
+  const included = filter ? eligible.filter(filter) : eligible;
+  const xml = build({ origin, vehicles: included });
 
   // Platforms silently ignore rejected items. Our own exclusions are deliberate,
   // so say which listings were dropped and why — otherwise "only 20 of 25 trucks
@@ -51,7 +58,7 @@ export async function serveFeed(
       "Content-Type": contentType,
       "Cache-Control": "public, max-age=900, s-maxage=900",
       "X-Feed-Total": String(catalog.length),
-      "X-Feed-Included": String(eligible.length),
+      "X-Feed-Included": String(included.length),
       "X-Feed-Skipped": String(skipped.length),
       "X-Feed-Warnings": String(warnings.length),
     },
