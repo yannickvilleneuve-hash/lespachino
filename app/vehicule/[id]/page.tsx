@@ -156,6 +156,14 @@ export default async function VehiclePage({ params }: PageProps) {
             </h2>
           </div>
 
+          {vehicle.description && (
+            <div className="max-h-40 overflow-y-auto rounded border border-white/10 bg-white/5 px-4 py-3 lg:max-h-48">
+              <p className="whitespace-pre-line text-sm leading-relaxed text-white/70">
+                {vehicle.description}
+              </p>
+            </div>
+          )}
+
           <LeadForm unit={vehicle.id} title={title} />
 
           {tel && (
