@@ -4,12 +4,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 let currentIp = "1.2.3.4";
 const insert = vi.fn(async (_row: Record<string, unknown>) => ({ error: null as null | { message: string } }));
 const sendMail = vi.fn(async (_arg: unknown) => {});
+const listUsers = vi.fn(async () => ({
+  data: { users: [{ email: "alan@camion-hino.ca" }, { email: "yannick@camion-hino.ca" }] },
+  error: null as null | { message: string },
+}));
 
 vi.mock("next/headers", () => ({
   headers: async () => new Map([["x-forwarded-for", currentIp], ["user-agent", "vitest"]]),
 }));
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: () => ({ insert }) }),
+  createAdminClient: () => ({
+    from: () => ({ insert }),
+    auth: { admin: { listUsers } },
+  }),
 }));
 vi.mock("@/lib/graph/mail", () => ({ sendGraphEmail: (a: unknown) => sendMail(a) }));
 
@@ -26,6 +33,7 @@ describe("submitLead", () => {
   beforeEach(() => {
     insert.mockClear();
     sendMail.mockClear();
+    listUsers.mockClear();
     insert.mockResolvedValue({ error: null });
   });
 
@@ -45,6 +53,14 @@ describe("submitLead", () => {
     expect(sendMail).toHaveBeenCalledOnce();
     // IP is stored hashed, never in clear.
     expect(insert.mock.calls[0][0].ip_hash).not.toContain("10.0.0.2");
+  });
+
+  it("CCs every dealer user so a lead isn't hidden by an unmonitored inbox", async () => {
+    currentIp = "10.0.0.9";
+    await submitLead(S0, fd({ unit: "1", name: "Jean", message: "Dispo?" }));
+    expect(sendMail).toHaveBeenCalledOnce();
+    const arg = sendMail.mock.calls[0][0] as { cc: string[] };
+    expect(arg.cc).toEqual(["alan@camion-hino.ca", "yannick@camion-hino.ca"]);
   });
 
   it("rate-limits after 5 submissions from the same IP", async () => {

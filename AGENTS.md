@@ -40,7 +40,10 @@ notices dans le terminal.
 - Magic link auth: **Graph API** (`lib/graph/mail.ts`) depuis
   `service@camion-hino.ca` — PAS de Supabase SMTP. Rate limit par IP
   géré dans Supabase lui-même.
-- Leads: même pattern Graph, `to: service@`, `cc: tous les auth users`.
+- Leads: même pattern Graph, envoyé DE `service@` (`GRAPH_FROM`). `to:` =
+  `LEAD_TO_EMAIL` (défaut `info@camion-hino.ca`), `cc:` = tous les auth users
+  Supabase (`auth.admin.listUsers`, moins le `to`). Le CC garantit qu'un lead
+  atteint une vraie personne même si la boîte `to` est en absence (auto-reply).
   Rate limit anti-spam en mémoire 5/h/IP dans `lib/leads/actions.ts`.
 
 ## Schéma Supabase

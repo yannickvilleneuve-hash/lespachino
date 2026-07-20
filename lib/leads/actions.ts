@@ -91,12 +91,29 @@ export async function submitLead(
     return { ok: false, message: "Erreur à l'envoi. Réessayez ou appelez-nous." };
   }
 
+  // CC every dealer user so a lead reaches a real person even when the LEAD_TO
+  // mailbox is unmonitored (e.g. on vacation with an auto-reply). Sent from
+  // service@, so each recipient gets the lead directly — an OOF can't mask it.
+  // Best-effort: a listing hiccup must not lose the lead nor block the visitor.
+  let cc: string[] = [];
+  try {
+    const { data, error: usersError } = await supabase.auth.admin.listUsers({ perPage: 200 });
+    if (usersError) throw usersError;
+    const to = LEAD_TO.toLowerCase();
+    cc = (data?.users ?? [])
+      .map((u) => u.email)
+      .filter((e): e is string => !!e && e.toLowerCase() !== to);
+  } catch (e) {
+    console.error("[lead] listUsers failed:", (e as Error).message);
+  }
+
   const url = `${FEED_ORIGIN}/vehicule/${encodeURIComponent(unit)}`;
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   try {
     await sendGraphEmail({
       to: LEAD_TO,
+      cc,
       subject: `Nouveau lead — ${name} (véhicule ${unit})`,
       html:
         `<p><b>Nouveau message depuis la fiche véhicule.</b></p>` +
