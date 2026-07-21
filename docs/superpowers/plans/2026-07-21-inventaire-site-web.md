@@ -977,7 +977,7 @@ git commit -m "feat(catalog): snapshot read helpers for the public pages"
 
 **Files:**
 - Create: `worker/catalog-sync.ts`
-- Modify: `tsconfig.worker.json` (ajouter `lib/catalog/**/*.ts` et `lib/feeds/**/*.ts` à `include`)
+- Modify: `tsconfig.worker.json` (ajouter `lib/catalog/**/*.ts` à `include`)
 - Modify: `ecosystem.config.cjs` (nouvelle app `pacman-catalog-sync`)
 - Modify: `package.json` (scripts `catalog:sync`)
 
@@ -1072,8 +1072,13 @@ Dans `package.json`, dans `scripts`, après `"bot:login"`:
 
 ```json
     "catalog:build": "tsc -p tsconfig.worker.json && tsc-alias -p tsconfig.worker.json",
-    "catalog:sync": "pnpm catalog:build && node worker/dist/worker/catalog-sync.js --once"
+    "catalog:sync": "pnpm catalog:build && node --env-file=.env.local worker/dist/worker/catalog-sync.js --once"
 ```
+
+`--env-file=.env.local` est obligatoire: contrairement à `next start`, un process
+Node nu ne charge pas `.env.local`, et `createAdminClient()` lève
+`NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY requis` dès le démarrage.
+Même convention que `scripts/resize-existing-photos.mjs` et `scripts/test-lespac.mjs`.
 
 - [ ] **Step 4: Compiler le worker**
 
@@ -1105,6 +1110,7 @@ Dans `ecosystem.config.cjs`, ajouter une troisième app après `pacman-bot`:
       script: "worker/dist/worker/catalog-sync.js",
       cwd: "/home/hino1/pacman",
       interpreter: "node",
+      node_args: "--env-file=.env.local",
       exec_mode: "fork",
       instances: 1,
       autorestart: true,
