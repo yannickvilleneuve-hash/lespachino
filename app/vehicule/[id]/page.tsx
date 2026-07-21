@@ -1,9 +1,10 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Oswald } from "next/font/google";
-import { getVehicleById } from "@/lib/catalog/fetch";
+import { getSnapshotVehicle, photoSrc } from "@/lib/catalog/read";
 import { getDealerConfig, telHref } from "@/lib/dealer/config";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 import { LeadForm } from "./LeadForm";
@@ -16,8 +17,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-/** One LesPAC fetch per request, shared by generateMetadata and the component. */
-const loadVehicle = cache(getVehicleById);
+/** One snapshot read per request, shared by generateMetadata and the component. */
+const loadVehicle = cache(getSnapshotVehicle);
 
 function displayTitle(v: CatalogVehicle): string {
   const parts = [v.year, v.make, v.model].filter((p) => p !== null && p !== "");
@@ -50,17 +51,20 @@ function specs(v: CatalogVehicle): Array<[string, string]> {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const vehicle = await loadVehicle(id);
-  if (!vehicle) notFound();
+  const row = await loadVehicle(id);
+  if (!row) notFound();
 
+  const vehicle = row.vehicle;
   const title = displayTitle(vehicle);
   return {
     title: `${title} — ${getDealerConfig().name}`,
     description: vehicle.description.slice(0, 160) || title,
+    // A withdrawn ad must not stay in the index competing with the live ones.
+    robots: row.status === "sold" ? { index: false } : undefined,
     openGraph: {
       title,
       description: vehicle.description.slice(0, 200) || title,
-      images: vehicle.photoUrls.slice(0, 1),
+      images: row.photos[0] ? [photoSrc(row.photos[0])] : [],
       type: "website",
     },
   };
@@ -68,13 +72,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function VehiclePage({ params }: PageProps) {
   const { id } = await params;
-  const vehicle = await loadVehicle(id);
-  if (!vehicle) notFound();
+  const row = await loadVehicle(id);
+  if (!row) notFound();
 
+  const vehicle = row.vehicle;
+  const withdrawn = row.status === "sold";
   const dealer = getDealerConfig();
   const title = displayTitle(vehicle);
   const tel = telHref(dealer.contact.phone);
-  const hero = vehicle.photoUrls[0];
+  const hero = row.photos[0] ? photoSrc(row.photos[0]) : undefined;
 
   return (
     <main
@@ -146,15 +152,32 @@ export default async function VehiclePage({ params }: PageProps) {
 
         {/* RIGHT — contact panel. */}
         <section className="flex flex-col justify-center gap-4 bg-[#141416] px-5 py-8 sm:px-10 lg:overflow-y-auto">
-          <div>
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ed1c24]">
-              <span className="block h-3 w-3 bg-[#ed1c24]" aria-hidden />
-              Ce camion vous intéresse?
-            </p>
-            <h2 className="mt-2 text-2xl font-bold uppercase leading-tight tracking-tight sm:text-3xl">
-              Écrivez-nous, on vous répond vite
-            </h2>
-          </div>
+          {withdrawn ? (
+            <div className="border border-[#ed1c24]/40 bg-[#ed1c24]/10 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ed1c24]">
+                Cette annonce n&apos;est plus en ligne
+              </p>
+              <p className="mt-2 text-sm text-white/70">
+                Ce véhicule a été vendu ou retiré. Voyez l&apos;inventaire à jour.
+              </p>
+              <Link
+                href="/vehicule"
+                className="mt-3 inline-block bg-[#ed1c24] px-4 py-2 text-sm font-bold uppercase tracking-wide text-white"
+              >
+                Voir l&apos;inventaire
+              </Link>
+            </div>
+          ) : (
+            <div>
+              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#ed1c24]">
+                <span className="block h-3 w-3 bg-[#ed1c24]" aria-hidden />
+                Ce camion vous intéresse?
+              </p>
+              <h2 className="mt-2 text-2xl font-bold uppercase leading-tight tracking-tight sm:text-3xl">
+                Écrivez-nous, on vous répond vite
+              </h2>
+            </div>
+          )}
 
           {vehicle.description && (
             <div className="max-h-40 overflow-y-auto rounded border border-white/10 bg-white/5 px-4 py-3 lg:max-h-48">
@@ -164,7 +187,7 @@ export default async function VehiclePage({ params }: PageProps) {
             </div>
           )}
 
-          <LeadForm unit={vehicle.id} title={title} />
+          {!withdrawn && <LeadForm unit={vehicle.id} title={title} />}
 
           {tel && (
             <p className="text-sm text-white/45">
