@@ -275,3 +275,72 @@ describe("formatAgeFr", () => {
     expect(formatAgeFr(null)).toBe("date inconnue");
   });
 });
+
+describe("resolveVehicleForPage — bound on the live fallback", () => {
+  const alwaysAllow = { allow: () => true, recordMiss: () => {} };
+
+  it("does NOT call LesPAC when the guard refuses", async () => {
+    const fromLive = vi.fn(async () => vehicle({ id: "99" }));
+    const row = await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive,
+      guard: { allow: () => false, recordMiss: () => {} },
+      nowMs: () => 0,
+    });
+
+    expect(row).toBeNull();
+    // The whole point: a walk of the id space must not reach LesPAC.
+    expect(fromLive).not.toHaveBeenCalled();
+  });
+
+  it("records a miss so the same unknown id costs nothing next time", async () => {
+    const recordMiss = vi.fn();
+    await resolveVehicleForPage("999999999", {
+      fromSnapshot: async () => null,
+      fromLive: async () => null,
+      guard: { allow: () => true, recordMiss },
+      nowMs: () => 4242,
+    });
+
+    expect(recordMiss).toHaveBeenCalledWith("999999999", 4242);
+  });
+
+  it("does not record a miss when the live call succeeds", async () => {
+    const recordMiss = vi.fn();
+    await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive: async () => vehicle({ id: "99" }),
+      onLiveHit: () => {},
+      guard: { allow: () => true, recordMiss },
+      nowMs: () => 0,
+    });
+
+    expect(recordMiss).not.toHaveBeenCalled();
+  });
+
+  it("never consults the guard when the snapshot already has the vehicle", async () => {
+    const allow = vi.fn(() => true);
+    await resolveVehicleForPage("42", {
+      fromSnapshot: async () => ({
+        vehicle: vehicle({ id: "42" }),
+        status: "online" as const,
+        photos: [],
+      }),
+      guard: { allow, recordMiss: () => {} },
+    });
+
+    expect(allow).not.toHaveBeenCalled();
+  });
+
+  it("still serves the fallback when the guard allows it", async () => {
+    const row = await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive: async () => vehicle({ id: "99" }),
+      onLiveHit: () => {},
+      guard: alwaysAllow,
+      nowMs: () => 0,
+    });
+
+    expect(row?.vehicle.id).toBe("99");
+  });
+});

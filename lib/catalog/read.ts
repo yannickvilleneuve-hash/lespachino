@@ -3,6 +3,7 @@ import { publicPhotoUrl } from "@/lib/catalog/photos";
 import { siteVisible } from "@/lib/catalog/visibility";
 import { resolveIntervalSec } from "@/lib/catalog/sync-config";
 import { getVehicleById } from "@/lib/catalog/fetch";
+import { createFallbackGuard, type FallbackGuard } from "@/lib/catalog/fallback-guard";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 
 export interface SnapshotPhoto {
@@ -122,7 +123,22 @@ export interface ResolveVehicleDeps {
   /** Called when the live net actually caught a page the snapshot had missed. */
   onLiveHit?: (id: string) => void;
   onLiveError?: (id: string, err: unknown) => void;
+  guard?: FallbackGuard;
+  nowMs?: () => number;
 }
+
+/**
+ * Process-wide bound on the live fallback. Shared by every request on purpose:
+ * what it protects is the single LesPAC token this server holds.
+ */
+const liveFallbackGuard = createFallbackGuard({
+  onSaturated: () =>
+    console.warn(
+      "[vehicule] live fallback budget exhausted for this minute — serving 404 " +
+        "for ids absent from the snapshot. Someone is walking the id space, or " +
+        "the worker is far behind.",
+    ),
+});
 
 /**
  * Worth a line: it means a visitor or a crawler reached a truck the snapshot did
@@ -169,9 +185,19 @@ export async function resolveVehicleForPage(
   const snapshot = await fromSnapshot(id);
   if (snapshot) return snapshot;
 
+  // Public route, numeric id space: without this bound, walking /vehicule/1,
+  // /vehicule/2, ... would spend one LesPAC request per URL on the token the
+  // live Meta feed shares.
+  const guard = deps.guard ?? liveFallbackGuard;
+  const nowMs = (deps.nowMs ?? Date.now)();
+  if (!guard.allow(id, nowMs)) return null;
+
   try {
     const live = await fromLive(id);
-    if (!live) return null;
+    if (!live) {
+      guard.recordMiss(id, nowMs);
+      return null;
+    }
     onLiveHit(id);
     return liveAsSnapshotVehicle(live);
   } catch (err) {
