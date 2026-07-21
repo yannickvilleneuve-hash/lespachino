@@ -1,5 +1,6 @@
 import { fetchCatalog } from "@/lib/catalog/fetch";
 import type { CatalogVehicle } from "@/lib/catalog/types";
+import { mirrorPhoto } from "@/lib/catalog/photos";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/types";
 
@@ -54,14 +55,16 @@ export async function runCatalogSync(
     // not leave orphan rows behind that would resurface on the card.
     await supabase.from("catalog_photo").delete().eq("vehicle_id", v.id);
     if (v.photoUrls.length > 0) {
-      await supabase.from("catalog_photo").upsert(
-        v.photoUrls.map((url, position) => ({
+      const rows = [];
+      for (const [position, url] of v.photoUrls.entries()) {
+        rows.push({
           vehicle_id: v.id,
           position,
           source_url: url,
-          storage_path: null,
-        })),
-      );
+          storage_path: await mirrorPhoto(supabase, v.id, position, url),
+        });
+      }
+      await supabase.from("catalog_photo").upsert(rows);
     }
   }
 
