@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { photoSrc, type SnapshotVehicle } from "@/lib/catalog/read";
+import { hasPlausibleOdometer } from "@/lib/feeds/eligibility";
 
 function displayTitle(v: SnapshotVehicle["vehicle"]): string {
   const parts = [v.year, v.make, v.model].filter((p) => p !== null && p !== "");
@@ -49,9 +50,12 @@ export function VehicleCard({ row }: { row: SnapshotVehicle }) {
               {displayPrice(v.priceCad)}
             </span>
           </p>
-          {v.km != null && (
+          {/* Same bar as the feeds: a used truck showing 0 or 10 km has a
+              placeholder odometer, not a real one. Printing it reads as fraud
+              to a buyer, so say nothing rather than say something false. */}
+          {hasPlausibleOdometer(v) && (
             <p className="mt-2 text-sm text-white/50">
-              {new Intl.NumberFormat("fr-CA").format(v.km)} km
+              {new Intl.NumberFormat("fr-CA").format(v.km!)} km
             </p>
           )}
         </div>

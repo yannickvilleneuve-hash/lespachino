@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Oswald } from "next/font/google";
 import { getSnapshotVehicle, photoSrc } from "@/lib/catalog/read";
+import { hasPlausibleOdometer } from "@/lib/feeds/eligibility";
 import { getDealerConfig, telHref } from "@/lib/dealer/config";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 import { LeadForm } from "./LeadForm";
@@ -40,8 +41,9 @@ const FUEL_FR = { DIESEL: "Diesel", GASOLINE: "Essence" } as const;
 /** Compact spec chips — the numbers a truck buyer scans first. */
 function specs(v: CatalogVehicle): Array<[string, string]> {
   const rows: Array<[string, string]> = [["État", v.isNew ? "Neuf" : "Usagé"]];
-  if (v.km != null) {
-    rows.push(["Kilométrage", `${new Intl.NumberFormat("fr-CA").format(v.km)} km`]);
+  // Same bar as the feeds: a placeholder odometer is worse than no odometer.
+  if (hasPlausibleOdometer(v)) {
+    rows.push(["Kilométrage", `${new Intl.NumberFormat("fr-CA").format(v.km!)} km`]);
   }
   if (v.transmission) rows.push(["Transmission", TRANSMISSION_FR[v.transmission]]);
   if (v.fuelType) rows.push(["Carburant", FUEL_FR[v.fuelType]]);
