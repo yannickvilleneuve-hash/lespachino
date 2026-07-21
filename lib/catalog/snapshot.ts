@@ -1,8 +1,8 @@
 import { fetchCatalog } from "@/lib/catalog/fetch";
-import type { CatalogVehicle } from "@/lib/catalog/types";
+import type { CatalogFetchResult, CatalogVehicle } from "@/lib/catalog/types";
 import { mirrorPhoto } from "@/lib/catalog/photos";
 import type { createAdminClient } from "@/lib/supabase/admin";
-import type { Json } from "@/lib/supabase/types";
+import type { Json, TablesInsert } from "@/lib/supabase/types";
 
 type SupabaseLike = ReturnType<typeof createAdminClient>;
 
@@ -10,7 +10,26 @@ export interface SyncResult {
   ok: boolean;
   written: number;
   sold: number;
+  /** LesPAC detail calls this cycle cost. The number the worker logs. */
+  detailFetches: number;
   error: string | null;
+}
+
+/**
+ * A fetch path may return the bare lot or the richer incremental result.
+ *
+ * A bare array means every vehicle in it was just read from LesPAC — that is
+ * what `fetchCatalog()` does — so all of them count as refreshed.
+ */
+export type CatalogFetcher = () => Promise<CatalogVehicle[] | CatalogFetchResult>;
+
+function asFetchResult(raw: CatalogVehicle[] | CatalogFetchResult): CatalogFetchResult {
+  if (!Array.isArray(raw)) return raw;
+  return {
+    vehicles: raw,
+    detailFetches: raw.length,
+    refreshedIds: raw.map((v) => v.id),
+  };
 }
 
 /**
@@ -23,18 +42,26 @@ export interface SyncResult {
  * here, would hand Meta an empty file. An empty meta.csv already froze the Meta
  * catalog once, on 2026-07-15. So: no lot, no write, previous snapshot survives.
  *
- * `fetchAll` is injectable for tests only; production always uses fetchCatalog.
+ * `fetchAll` is injected: the worker passes `fetchCatalogIncremental`, which
+ * reuses stored payloads instead of re-reading every LesPAC detail every cycle.
+ * The `fetchCatalog` default is the full-sweep fallback.
  */
 export async function runCatalogSync(
   supabase: SupabaseLike,
-  fetchAll: () => Promise<CatalogVehicle[]> = fetchCatalog,
+  fetchAll: CatalogFetcher = fetchCatalog,
 ): Promise<SyncResult> {
-  let fresh: CatalogVehicle[];
+  let result: CatalogFetchResult;
   try {
-    fresh = await fetchAll();
+    result = asFetchResult(await fetchAll());
   } catch (err) {
     return fail(supabase, err instanceof Error ? err.message : String(err));
   }
+
+  const fresh = result.vehicles;
+  // Only these had their LesPAC detail re-read this cycle. Everything else is a
+  // reused payload, and stamping detail_fetched_at on a reused payload would
+  // restart its TTL on data nobody re-read — the TTL would never expire again.
+  const refreshed = new Set(result.refreshedIds);
 
   if (fresh.length === 0) {
     return fail(supabase, "LesPAC a retourné un lot vide — snapshot conservé");
@@ -49,13 +76,18 @@ export async function runCatalogSync(
   };
 
   for (const v of fresh) {
-    const { error: vehicleErr } = await supabase.from("catalog_vehicle").upsert({
+    const row: TablesInsert<"catalog_vehicle"> = {
       id: v.id,
       payload: v as unknown as Json,
       status: "online",
       last_seen_at: now,
       sold_at: null,
-    });
+    };
+    // Omitted, not nulled: PostgREST only updates the columns present in the
+    // body, so a reused payload keeps whatever detail_fetched_at it had.
+    if (refreshed.has(v.id)) row.detail_fetched_at = now;
+
+    const { error: vehicleErr } = await supabase.from("catalog_vehicle").upsert(row);
     note(`vehicle ${v.id}`, vehicleErr);
 
     // What we already mirrored, keyed by the URL it came from.
@@ -137,7 +169,13 @@ export async function runCatalogSync(
     .from("catalog_sync")
     .upsert({ id: 1, ran_at: now, ok, count: fresh.length, error });
 
-  return { ok, written: fresh.length, sold: soldCount, error };
+  return {
+    ok,
+    written: fresh.length,
+    sold: soldCount,
+    detailFetches: result.detailFetches,
+    error,
+  };
 }
 
 async function fail(supabase: SupabaseLike, error: string): Promise<SyncResult> {
@@ -148,5 +186,5 @@ async function fail(supabase: SupabaseLike, error: string): Promise<SyncResult> 
     count: 0,
     error: error.slice(0, 500),
   });
-  return { ok: false, written: 0, sold: 0, error };
+  return { ok: false, written: 0, sold: 0, detailFetches: 0, error };
 }

@@ -278,6 +278,34 @@ describe("runCatalogSync", () => {
     expect(result.error).toMatch(/read timeout/);
   });
 
+  it("stamps detail_fetched_at ONLY on the vehicles whose detail was re-fetched", async () => {
+    const c = emptyCapture([
+      { id: "1", status: "online" },
+      { id: "2", status: "online" },
+    ]);
+    const result = await runCatalogSync(makeSupabase(c), async () => ({
+      vehicles: [vehicle({ id: "1" }), vehicle({ id: "2" })],
+      detailFetches: 1,
+      refreshedIds: ["1"],
+    }));
+
+    const byId = new Map(c.vehicleUpserts.map((r) => [r.id, r]));
+    expect(byId.get("1")).toHaveProperty("detail_fetched_at");
+    // Vehicle 2 shipped a REUSED payload. Stamping it would restart its TTL on
+    // data nobody re-read, and the TTL would then never expire.
+    expect(byId.get("2")).not.toHaveProperty("detail_fetched_at");
+    expect(result.detailFetches).toBe(1);
+  });
+
+  it("counts every vehicle as refreshed when the fetcher returns a bare array", async () => {
+    // fetchCatalog() re-reads every detail, so the full-sweep path must stamp.
+    const c = emptyCapture();
+    const result = await runCatalogSync(makeSupabase(c), async () => [vehicle({ id: "1" })]);
+
+    expect(result.detailFetches).toBe(1);
+    expect(c.vehicleUpserts[0]).toHaveProperty("detail_fetched_at");
+  });
+
   it("reports ok:false when a write fails, instead of claiming success", async () => {
     const c = emptyCapture([{ id: "1", status: "online" }]);
     c.failUpsertOn = "catalog_vehicle";

@@ -40,3 +40,19 @@ export interface CatalogVehicle {
   /** Photo URLs in LesPAC order. First is the hero. */
   photoUrls: string[];
 }
+
+/**
+ * What a fetch path hands `runCatalogSync`.
+ *
+ * The counters exist because the incremental fetcher reuses stored payloads:
+ * only the vehicles listed in `refreshedIds` had their LesPAC detail re-read
+ * this cycle, and only those may have `detail_fetched_at` moved forward. Moving
+ * it on a reused payload would restart the TTL on data we never re-read, so the
+ * TTL would never expire and the catalog would freeze.
+ */
+export interface CatalogFetchResult {
+  vehicles: CatalogVehicle[];
+  /** LesPAC detail calls actually issued this cycle. */
+  detailFetches: number;
+  refreshedIds: string[];
+}

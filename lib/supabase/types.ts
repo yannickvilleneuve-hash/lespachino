@@ -189,6 +189,7 @@ export type Database = {
       }
       catalog_vehicle: {
         Row: {
+          detail_fetched_at: string | null
           first_seen_at: string
           id: string
           last_seen_at: string
@@ -197,6 +198,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          detail_fetched_at?: string | null
           first_seen_at?: string
           id: string
           last_seen_at?: string
@@ -205,6 +207,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          detail_fetched_at?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
