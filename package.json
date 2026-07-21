@@ -13,7 +13,9 @@
     "bot:build": "tsc -p tsconfig.worker.json && tsc-alias -p tsconfig.worker.json",
     "bot": "node worker/dist/worker/index.js",
     "bot:cycle": "pnpm bot:build && node worker/dist/worker/run-once.js",
-    "bot:login": "node scripts/bot-login.mjs"
+    "bot:login": "node scripts/bot-login.mjs",
+    "catalog:build": "tsc -p tsconfig.worker.json && tsc-alias -p tsconfig.worker.json",
+    "catalog:sync": "pnpm catalog:build && node --env-file=.env.local worker/dist/worker/catalog-sync.js --once"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

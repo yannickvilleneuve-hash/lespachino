@@ -14,9 +14,10 @@
   "include": [
     "worker/**/*.ts",
     "lib/bot/**/*.ts",
+    "lib/catalog/**/*.ts",
+    "lib/lespac/**/*.ts",
     "lib/graph/**/*.ts",
     "lib/supabase/**/*.ts",
-    "lib/lespac/**/*.ts",
     "lib/dealer/**/*.ts"
   ]
 }
