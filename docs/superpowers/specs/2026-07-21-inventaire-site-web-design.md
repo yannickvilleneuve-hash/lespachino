@@ -223,8 +223,10 @@ snapshot. `/dashboard`, `/inventaire`, `/auth/`, `/api/` restent en `disallow`.
   snapshot; un id absent du lot passe à `sold`; un id revenu repasse à `online`.
 - `catalog-visibility.test.ts` — un véhicule sans prix est visible, un véhicule
   sans photo ne l'est pas, un non-véhicule ne l'est pas.
-- `feeds-serve.test.ts` (existant) — reste vert sans modification, ce qui prouve
-  que les feeds n'ont pas bougé.
+- Les suites de feeds existantes (`feeds-eligibility`, `feeds-meta-vehicle-csv`,
+  `feeds-meta-vehicle`, `feeds-google-vla`, `feeds-origin`) restent vertes **sans
+  être modifiées**. À quoi s'ajoute un `git diff` vide sur `lib/feeds/` et
+  `app/feeds/`: la preuve que l'entrée de Meta n'a pas bougé.
 
 ## Hors périmètre
 
