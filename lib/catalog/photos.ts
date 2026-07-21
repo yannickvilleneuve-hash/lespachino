@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type SupabaseLike = ReturnType<typeof createAdminClient>;
@@ -47,10 +48,31 @@ export async function mirrorPhoto(
     return null;
   }
 
-  const path = `catalog/${vehicleId}/${position}.${extensionFor(contentType, sourceUrl)}`;
+  const path = mirrorPath(vehicleId, position, sourceUrl, contentType);
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, body, { contentType, upsert: true });
 
   return error ? null : path;
+}
+
+/**
+ * Where a mirrored photo lives.
+ *
+ * The source URL's fingerprint is in the filename on purpose. A path keyed on
+ * position alone would be reused when the dealer swaps a photo, and since the
+ * public URL would not change, the Next image optimizer would keep serving the
+ * old bytes — its cache is keyed by URL, holds for `minimumCacheTTL` (4 h by
+ * default), and has no invalidation hook. Fingerprinting makes a new photo a new
+ * URL, so the swap is visible immediately.
+ */
+export function mirrorPath(
+  vehicleId: string,
+  position: number,
+  sourceUrl: string,
+  contentType: string,
+): string {
+  const fingerprint = createHash("sha1").update(sourceUrl).digest("hex").slice(0, 8);
+  const ext = extensionFor(contentType, sourceUrl);
+  return `catalog/${vehicleId}/${position}-${fingerprint}.${ext}`;
 }

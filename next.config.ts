@@ -8,10 +8,18 @@ const nextConfig: NextConfig = {
     "feeds.hinochicoutimi.com",
   ],
   images: {
+    // Exact hosts, never wildcards. `*.supabase.co` would let anyone spin up a
+    // free Supabase project and use our public /_next/image endpoint as an open
+    // image proxy — our domain, our CPU, our bandwidth, their content.
     remotePatterns: [
-      { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
-      { protocol: "https", hostname: "*.lespac.com" },
-      { protocol: "https", hostname: "*.lespaccdn.com" },
+      {
+        protocol: "https",
+        hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://invalid.invalid")
+          .hostname,
+        pathname: "/storage/v1/object/public/vehicle-photos/**",
+      },
+      // The LesPAC CDN is the fallback when a photo has not been mirrored yet.
+      { protocol: "https", hostname: "cdn.lespac.com" },
     ],
   },
   async headers() {

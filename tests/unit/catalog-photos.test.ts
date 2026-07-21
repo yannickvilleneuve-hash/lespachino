@@ -46,15 +46,30 @@ describe("mirrorPhoto", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uploads under catalog/<id>/<position>.<ext> and returns the path", async () => {
+  it("uploads under catalog/<id>/<position>-<fingerprint>.<ext> and returns the path", async () => {
     const c: Capture = { uploads: [] };
     const path = await mirrorPhoto(makeSupabase(c), "223612404", 0, "https://cdn.lespac.com/a.jpg");
 
-    expect(path).toBe("catalog/223612404/0.jpg");
-    expect(c.uploads[0]).toMatchObject({
-      path: "catalog/223612404/0.jpg",
-      contentType: "image/jpeg",
-    });
+    expect(path).toMatch(/^catalog\/223612404\/0-[0-9a-f]{8}\.jpg$/);
+    expect(c.uploads[0]).toMatchObject({ path, contentType: "image/jpeg" });
+  });
+
+  it("gives a different path to a different photo at the same position", async () => {
+    // The fingerprint is what makes a swapped photo a new URL. Without it the
+    // Next image optimizer keeps serving the old bytes for up to 4 hours.
+    const c: Capture = { uploads: [] };
+    const first = await mirrorPhoto(makeSupabase(c), "1", 0, "https://cdn.lespac.com/a.jpg");
+    const second = await mirrorPhoto(makeSupabase(c), "1", 0, "https://cdn.lespac.com/b.jpg");
+
+    expect(first).not.toBe(second);
+  });
+
+  it("gives a stable path for the same photo across cycles", async () => {
+    const c: Capture = { uploads: [] };
+    const first = await mirrorPhoto(makeSupabase(c), "1", 0, "https://cdn.lespac.com/a.jpg");
+    const again = await mirrorPhoto(makeSupabase(c), "1", 0, "https://cdn.lespac.com/a.jpg");
+
+    expect(first).toBe(again);
   });
 
   it("returns null when the source photo cannot be downloaded", async () => {

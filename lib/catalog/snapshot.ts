@@ -41,54 +41,96 @@ export async function runCatalogSync(
   }
 
   const now = new Date().toISOString();
+  // Every write is checked. Reporting ok:true after a failed write would make
+  // catalog_sync — the only freshness signal an operator has — lie.
+  const failures: string[] = [];
+  const note = (what: string, error: { message: string } | null) => {
+    if (error) failures.push(`${what}: ${error.message}`);
+  };
 
   for (const v of fresh) {
-    await supabase.from("catalog_vehicle").upsert({
+    const { error: vehicleErr } = await supabase.from("catalog_vehicle").upsert({
       id: v.id,
       payload: v as unknown as Json,
       status: "online",
       last_seen_at: now,
       sold_at: null,
     });
+    note(`vehicle ${v.id}`, vehicleErr);
 
-    // Replace, don't accumulate: a seller who reorders or removes photos must
-    // not leave orphan rows behind that would resurface on the card.
-    await supabase.from("catalog_photo").delete().eq("vehicle_id", v.id);
-    if (v.photoUrls.length > 0) {
-      const rows = [];
-      for (const [position, url] of v.photoUrls.entries()) {
-        rows.push({
-          vehicle_id: v.id,
-          position,
-          source_url: url,
-          storage_path: await mirrorPhoto(supabase, v.id, position, url),
-        });
-      }
-      await supabase.from("catalog_photo").upsert(rows);
+    // What we already mirrored, keyed by the URL it came from.
+    const { data: existing, error: readErr } = await supabase
+      .from("catalog_photo")
+      .select("position, source_url, storage_path")
+      .eq("vehicle_id", v.id);
+    note(`photo read ${v.id}`, readErr);
+
+    const mirrored = new Map<string, string>();
+    for (const row of existing ?? []) {
+      if (row.storage_path) mirrored.set(row.source_url, row.storage_path);
     }
+
+    const rows = [];
+    for (const [position, url] of v.photoUrls.entries()) {
+      // Reuse the copy we already own. Re-mirroring every cycle would re-download
+      // and re-upload all 168 photos every 15 minutes, and — the real damage — a
+      // transient LesPAC CDN failure would null a storage_path that points at a
+      // perfectly good object still sitting in our bucket, sending the site back
+      // to the very CDN that is down.
+      const known = mirrored.get(url);
+      const storagePath = known ?? (await mirrorPhoto(supabase, v.id, position, url));
+      rows.push({
+        vehicle_id: v.id,
+        position,
+        source_url: url,
+        storage_path: storagePath ?? null,
+      });
+    }
+
+    // Upsert first, prune after: deleting up front left a window of seconds —
+    // one full mirroring pass — where the vehicle had no photo rows at all. A
+    // page render landing in that window baked a photoless card into the ISR
+    // cache for 5 minutes (15 on the detail page).
+    if (rows.length > 0) {
+      const { error: writeErr } = await supabase.from("catalog_photo").upsert(rows);
+      note(`photo write ${v.id}`, writeErr);
+    }
+    const { error: pruneErr } = await supabase
+      .from("catalog_photo")
+      .delete()
+      .eq("vehicle_id", v.id)
+      .gte("position", v.photoUrls.length);
+    note(`photo prune ${v.id}`, pruneErr);
   }
 
   // Anything the fetch did not return is gone from LesPAC: sold, or deactivated
   // and about to be re-posted under a new listingId. Indistinguishable from here.
   const knownIds = fresh.map((v) => v.id);
-  const { data: rows } = await supabase.from("catalog_vehicle").select("id, status");
+  const { data: rows, error: listErr } = await supabase
+    .from("catalog_vehicle")
+    .select("id, status");
+  note("vehicle list", listErr);
   const soldCount = (rows ?? []).filter(
     (r) => r.status === "online" && !knownIds.includes(r.id),
   ).length;
 
   if (soldCount > 0) {
-    await supabase
+    const { error: soldErr } = await supabase
       .from("catalog_vehicle")
       .update({ status: "sold", sold_at: now })
       .eq("status", "online")
       .not("id", "in", `(${knownIds.join(",")})`);
+    note("mark sold", soldErr);
   }
+
+  const ok = failures.length === 0;
+  const error = ok ? null : failures.join("; ").slice(0, 500);
 
   await supabase
     .from("catalog_sync")
-    .upsert({ id: 1, ran_at: now, ok: true, count: fresh.length, error: null });
+    .upsert({ id: 1, ran_at: now, ok, count: fresh.length, error });
 
-  return { ok: true, written: fresh.length, sold: soldCount, error: null };
+  return { ok, written: fresh.length, sold: soldCount, error };
 }
 
 async function fail(supabase: SupabaseLike, error: string): Promise<SyncResult> {
