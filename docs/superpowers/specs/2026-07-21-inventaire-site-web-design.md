@@ -103,7 +103,16 @@ Boucle toutes les 15 min:
 3. Sinon: upsert de chaque véhicule (`status='online'`, `last_seen_at=now()`),
    puis les ids absents du lot passent à `status='sold'`, `sold_at=now()`.
 4. Les photos nouvelles sont copiées dans le bucket `vehicle-photos` sous
-   `catalog/<id>/<position>.<ext>`; `source_url` est conservé intact.
+   `catalog/<id>/<position>-<empreinte>.<ext>`, où l'empreinte est un SHA-1
+   tronqué de `source_url`; `source_url` est conservé intact. L'empreinte fait
+   qu'une photo remplacée devient une **nouvelle URL**: sans elle, le cache de
+   l'optimiseur d'images Next — indexé par URL, 4 h par défaut, sans mécanisme
+   d'invalidation — continuerait de servir l'ancienne image.
+
+   Une photo déjà miroitée n'est jamais re-téléchargée: la synchro réutilise le
+   `storage_path` enregistré pour le même `source_url`. Conséquence à connaître:
+   les photos miroitées avant l'introduction de l'empreinte gardent leur ancien
+   chemin `catalog/<id>/<position>.<ext>` et restent servies telles quelles.
 
 Le point 2 est le cœur de la résilience: un lot vide ne détruit jamais le
 snapshot.

@@ -65,6 +65,13 @@ export async function runCatalogSync(
       .eq("vehicle_id", v.id);
     note(`photo read ${v.id}`, readErr);
 
+    // Could not read what we already own. Carrying on would treat "I don't know"
+    // as "I own nothing", re-mirror every photo, and — if the CDN is also having
+    // a bad minute — overwrite good storage paths with null. Skip this vehicle's
+    // photos for this cycle; the rows on disk stay correct and the next cycle
+    // retries. The vehicle row itself is already up to date.
+    if (readErr) continue;
+
     const mirrored = new Map<string, string>();
     for (const row of existing ?? []) {
       if (row.storage_path) mirrored.set(row.source_url, row.storage_path);

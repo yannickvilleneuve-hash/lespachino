@@ -37,6 +37,8 @@ interface Capture {
   ops: string[];
   /** Table whose upsert should report an error, to exercise failure reporting. */
   failUpsertOn?: string;
+  /** Make the catalog_photo read fail, to exercise the skip-this-vehicle path. */
+  failPhotoRead?: boolean;
   uploadOk: boolean;
 }
 
@@ -62,6 +64,9 @@ function makeSupabase(c: Capture) {
           // catalog_photo reads filter by vehicle; catalog_vehicle reads are awaited raw.
           return {
             eq(_col: string, val: string) {
+              if (c.failPhotoRead) {
+                return Promise.resolve({ data: null, error: { message: "read timeout" } });
+              }
               return Promise.resolve({
                 data: c.existingPhotos.filter((r) => r.vehicle_id === val),
                 error: null,
@@ -254,6 +259,23 @@ describe("runCatalogSync", () => {
     // Nulling this would point the site back at the CDN that is down, while a
     // perfectly good copy sits in our own bucket.
     expect(c.photoUpserts[0].storage_path).toBe("catalog/1/0-aaa.jpg");
+  });
+
+  it("leaves the photo rows alone when it cannot read what it already owns", async () => {
+    const c = emptyCapture(
+      [{ id: "1", status: "online" }],
+      [{ vehicle_id: "1", position: 0, source_url: "https://cdn.lespac.com/a.jpg", storage_path: "catalog/1/0-aaa.jpg" }],
+    );
+    c.failPhotoRead = true;
+    const result = await runCatalogSync(makeSupabase(c), async () => [vehicle({ id: "1" })]);
+
+    // "I could not read" must not be treated as "I own nothing" — that would
+    // re-mirror everything and, with the CDN down, null a good storage_path.
+    expect(c.photoUpserts).toHaveLength(0);
+    expect(c.prunes).toHaveLength(0);
+    expect(c.vehicleUpserts).toHaveLength(1); // the vehicle row itself still lands
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/read timeout/);
   });
 
   it("reports ok:false when a write fails, instead of claiming success", async () => {

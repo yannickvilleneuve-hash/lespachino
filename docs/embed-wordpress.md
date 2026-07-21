@@ -22,8 +22,26 @@ Page WordPress « Inventaire » → bloc **HTML personnalisé** → ce code:
 </script>
 ```
 
-Le `min-height` couvre le cas où le script ne s'exécute pas (bloqueur, cache
-agressif): l'inventaire reste lisible, seulement moins haut.
+**Le script n'est pas optionnel tel que l'iframe est écrite ici.** Avec
+`scrolling="no"`, si le listener `message` ne s'exécute pas — script bloqué,
+extension, CSP du thème, erreur JS ailleurs dans la page — le cadre est **coupé
+net** à `min-height`, pas rendu scrollable: le visiteur voit 2 camions sur 21 et
+n'a aucun moyen d'atteindre les autres. Le `min-height` limite les dégâts, il ne
+dégrade pas gracieusement.
+
+Si tu veux une version sans script, il faut aussi rendre le scroll interne au
+cadre, sinon tu perds l'inventaire:
+
+```html
+<iframe src="https://feeds.hinochicoutimi.com/vehicule"
+  title="Inventaire — Centre du camion Hino"
+  style="width:100%;border:0;display:block;height:4200px"
+  scrolling="auto" loading="lazy"></iframe>
+```
+
+Hauteur fixe généreuse, scroll interne autorisé. Ça marche, c'est simplement
+moins propre: du vide en bas quand l'inventaire rétrécit, une barre de défilement
+imbriquée quand il grossit.
 
 Le contrôle d'origine dans le `if` est ce qui empêche n'importe quel site
 d'injecter une hauteur. Ne pas le retirer.

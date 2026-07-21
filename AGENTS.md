@@ -54,6 +54,13 @@ listing(unit, price_cad, description_fr, is_published, channels[],
         hidden, updated_by, created_at, updated_at)
 vehicle_photo(id, unit, storage_path, position, is_hero, uploaded_by, uploaded_at)
 lead(id, unit, name, phone, email, message, ip_hash, user_agent, created_at)
+
+-- Snapshot LECTURE SEULE du catalogue LesPAC (PK = listingId, pas unit).
+-- Écrit uniquement par le worker; personne n'édite ces tables à la main.
+catalog_vehicle(id, payload jsonb, status 'online'|'sold',
+                first_seen_at, last_seen_at, sold_at)
+catalog_photo(vehicle_id, position, source_url, storage_path)  -- PK (vehicle_id, position)
+catalog_sync(id=1, ran_at, ok, count, error)                   -- singleton: fraîcheur
 ```
 
 ## Conventions de nommage
@@ -68,6 +75,15 @@ lead(id, unit, name, phone, email, message, ip_hash, user_agent, created_at)
 
 - Dev server: `pm2 restart pacman` après changements structurels. HMR
   couvre les changements de code.
+- **Le worker n'est PAS compilé par `pnpm build`.** `pacman-catalog-sync`
+  exécute `worker/dist/worker/catalog-sync.js`, et `worker/dist/` est gitignoré.
+  Après un changement dans `lib/catalog/` ou `worker/`: `pnpm catalog:build`
+  PUIS `pm2 restart pacman-catalog-sync`. Sinon pm2 continue de tourner
+  l'ancien JS et le correctif semble sans effet. `pnpm catalog:sync` fait les
+  deux et lance un cycle unique.
+- Le worker tourne sous Node nu: il a besoin de `--env-file=.env.local`
+  (déjà dans `ecosystem.config.cjs` et dans le script pnpm), contrairement à
+  `next start` qui charge `.env.local` tout seul.
 - Migrations: SQL dans `supabase/migrations/` + `apply_migration` MCP.
   Régénérer types après: `generate_typescript_types` MCP.
 - Tests: `pnpm test` (vitest). Ajoute systématiquement 1-2 tests par

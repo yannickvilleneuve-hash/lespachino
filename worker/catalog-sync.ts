@@ -9,16 +9,10 @@
  */
 
 import { runCatalogSync } from "@/lib/catalog/snapshot";
+import { resolveIntervalSec } from "@/lib/catalog/sync-config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/**
- * A typo in CATALOG_SYNC_INTERVAL_SEC would parse to NaN, `setTimeout(NaN)`
- * fires immediately, and the loop would hammer the LesPAC API as fast as it can
- * answer — the one thing that could get our token rate-limited and take the Meta
- * feed down with it. Fall back to the default instead, and never go below 60 s.
- */
-const parsedInterval = Number.parseInt(process.env.CATALOG_SYNC_INTERVAL_SEC ?? "", 10);
-const INTERVAL_SEC = Number.isFinite(parsedInterval) ? Math.max(60, parsedInterval) : 900;
+const INTERVAL_SEC = resolveIntervalSec(process.env.CATALOG_SYNC_INTERVAL_SEC);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
