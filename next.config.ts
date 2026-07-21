@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
     "ventes.hinochicoutimi.com",
     "feeds.hinochicoutimi.com",
   ],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
+      { protocol: "https", hostname: "*.lespac.com" },
+      { protocol: "https", hostname: "*.lespaccdn.com" },
+    ],
+  },
   experimental: {
     serverActions: {
       // Server Actions arrivent via Cloudflare Worker → x-forwarded-host
