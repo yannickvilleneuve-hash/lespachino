@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { publicPhotoUrl } from "@/lib/catalog/photos";
 import { siteVisible } from "@/lib/catalog/visibility";
 import { resolveIntervalSec } from "@/lib/catalog/sync-config";
+import { getVehicleById } from "@/lib/catalog/fetch";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 
 export interface SnapshotPhoto {
@@ -88,6 +89,95 @@ export async function getSnapshotVehicle(id: string): Promise<SnapshotVehicle | 
   if (error) throw new Error(`snapshot read failed: ${error.message}`);
   if (!data) return null;
   return toSnapshotVehicle(data as unknown as VehicleRow);
+}
+
+/* ------------------------------------------------------------------ */
+/* Resolving the vehicle page: snapshot first, live LesPAC as net       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A live LesPAC vehicle, in the shape the page already consumes.
+ *
+ * `status` is "online" because `getVehicleById` only ever returns ONLINE
+ * listings. Photos keep their LesPAC CDN URLs and a null `storagePath`: a
+ * vehicle the worker has never seen has no mirrored copy, and `photoSrc`
+ * already falls back to the source URL in exactly that case.
+ */
+export function liveAsSnapshotVehicle(vehicle: CatalogVehicle): SnapshotVehicle {
+  return {
+    vehicle,
+    status: "online",
+    photos: vehicle.photoUrls.map((sourceUrl, position) => ({
+      position,
+      sourceUrl,
+      storagePath: null,
+    })),
+  };
+}
+
+/** Injected so the resolver is unit-testable without a database or a network. */
+export interface ResolveVehicleDeps {
+  fromSnapshot?: (id: string) => Promise<SnapshotVehicle | null>;
+  fromLive?: (id: string) => Promise<CatalogVehicle | null>;
+  /** Called when the live net actually caught a page the snapshot had missed. */
+  onLiveHit?: (id: string) => void;
+  onLiveError?: (id: string, err: unknown) => void;
+}
+
+/**
+ * Worth a line: it means a visitor or a crawler reached a truck the snapshot did
+ * not have yet. Rare and expected right after the dealer posts; frequent means
+ * the worker is behind. Misses that resolve to nothing are not logged — those
+ * are just bots probing junk ids.
+ */
+function logLiveHit(id: string): void {
+  console.info(`[vehicule] ${id} served live: absent from the snapshot`);
+}
+
+function logLiveError(id: string, err: unknown): void {
+  console.error(`[vehicule] live fallback failed for ${id}:`, err);
+}
+
+/**
+ * The vehicle behind /vehicule/<id>, with the snapshot's staleness papered over.
+ *
+ * `/feeds/meta.csv` is built from a LIVE `fetchCatalog()`, so a truck the dealer
+ * posts on LesPAC enters the Meta feed at once — while the snapshot only learns
+ * about it at the next worker cycle, up to 15 minutes later. Without this
+ * fallback, Meta's crawler and every early click land on `notFound()` for a
+ * product Meta is already advertising, and the ad gets disapproved for a broken
+ * landing page.
+ *
+ * The snapshot stays the primary source: it is one round-trip, it holds sold
+ * vehicles the live API no longer returns, and it survives a LesPAC outage. The
+ * live call is a miss-only net.
+ *
+ * A live failure degrades to null — i.e. a 404 — never to a 500: LesPAC being
+ * down must not turn every unknown id into a server error page. No id-format
+ * guard here on purpose; `getVehicleById` rejects non-numeric and non-positive
+ * ids before touching the API.
+ */
+export async function resolveVehicleForPage(
+  id: string,
+  deps: ResolveVehicleDeps = {},
+): Promise<SnapshotVehicle | null> {
+  const fromSnapshot = deps.fromSnapshot ?? getSnapshotVehicle;
+  const fromLive = deps.fromLive ?? getVehicleById;
+  const onLiveHit = deps.onLiveHit ?? logLiveHit;
+  const onLiveError = deps.onLiveError ?? logLiveError;
+
+  const snapshot = await fromSnapshot(id);
+  if (snapshot) return snapshot;
+
+  try {
+    const live = await fromLive(id);
+    if (!live) return null;
+    onLiveHit(id);
+    return liveAsSnapshotVehicle(live);
+  } catch (err) {
+    onLiveError(id, err);
+    return null;
+  }
 }
 
 /* ------------------------------------------------------------------ */

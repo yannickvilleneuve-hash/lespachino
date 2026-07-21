@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Oswald } from "next/font/google";
-import { getSnapshotVehicle, photoSrc } from "@/lib/catalog/read";
+import { resolveVehicleForPage, photoSrc } from "@/lib/catalog/read";
 import { hasPlausibleOdometer } from "@/lib/feeds/eligibility";
 import { getDealerConfig, telHref } from "@/lib/dealer/config";
 import type { CatalogVehicle } from "@/lib/catalog/types";
@@ -18,8 +18,12 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-/** One snapshot read per request, shared by generateMetadata and the component. */
-const loadVehicle = cache(getSnapshotVehicle);
+/**
+ * One resolution per request, shared by generateMetadata and the component, so
+ * the two can never disagree — including on the live-fallback path, where a
+ * second call would mean a second LesPAC round-trip.
+ */
+const loadVehicle = cache((id: string) => resolveVehicleForPage(id));
 
 function displayTitle(v: CatalogVehicle): string {
   const parts = [v.year, v.make, v.model].filter((p) => p !== null && p !== "");

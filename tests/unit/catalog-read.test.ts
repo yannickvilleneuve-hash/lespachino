@@ -1,10 +1,12 @@
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://proj.supabase.co";
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   photoSrc,
   sortByYearDesc,
   toSnapshotVehicle,
+  liveAsSnapshotVehicle,
+  resolveVehicleForPage,
   syncHealth,
   staleThresholdSec,
   formatAgeFr,
@@ -76,6 +78,115 @@ describe("toSnapshotVehicle", () => {
     expect(snap.status).toBe("online");
     expect(snap.vehicle.make).toBe("Isuzu");
     expect(snap.photos.map((p) => p.position)).toEqual([0, 1]);
+  });
+});
+
+describe("resolveVehicleForPage", () => {
+  const snapshotHit = {
+    vehicle: vehicle({ id: "42" }),
+    status: "online" as const,
+    photos: [{ position: 0, sourceUrl: "https://cdn.lespac.com/a.jpg", storagePath: "catalog/42/0.jpg" }],
+  };
+
+  it("returns the snapshot row unchanged and never touches LesPAC", async () => {
+    const fromLive = vi.fn();
+    const row = await resolveVehicleForPage("42", {
+      fromSnapshot: async () => snapshotHit,
+      fromLive,
+    });
+
+    expect(row).toBe(snapshotHit);
+    // The whole point of the snapshot: one DB read, zero LesPAC calls.
+    expect(fromLive).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the live listing on a snapshot miss, in the same shape", async () => {
+    const live = vehicle({
+      id: "99",
+      year: 2025,
+      photoUrls: ["https://cdn.lespac.com/x.jpg", "https://cdn.lespac.com/y.jpg"],
+    });
+    const fromLive = vi.fn(async () => live);
+    const onLiveHit = vi.fn();
+    const row = await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive,
+      onLiveHit,
+    });
+
+    expect(fromLive).toHaveBeenCalledWith("99");
+    // The operator gets one line saying the net caught a stale snapshot.
+    expect(onLiveHit).toHaveBeenCalledWith("99");
+    expect(row).not.toBeNull();
+    // Same shape the page consumes on the snapshot path.
+    expect(Object.keys(row!).sort()).toEqual(["photos", "status", "vehicle"]);
+    expect(row!.vehicle).toBe(live);
+    // A live listing is ONLINE by construction — never the "vendu" banner.
+    expect(row!.status).toBe("online");
+    expect(row!.photos).toEqual([
+      { position: 0, sourceUrl: "https://cdn.lespac.com/x.jpg", storagePath: null },
+      { position: 1, sourceUrl: "https://cdn.lespac.com/y.jpg", storagePath: null },
+    ]);
+  });
+
+  it("gives the fallback's photos a src through photoSrc — the CDN, unmirrored", async () => {
+    const row = await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive: async () => vehicle({ id: "99", photoUrls: ["https://cdn.lespac.com/x.jpg"] }),
+      onLiveHit: () => {},
+    });
+
+    // Nothing is mirrored yet for a truck the worker has never seen.
+    expect(photoSrc(row!.photos[0])).toBe("https://cdn.lespac.com/x.jpg");
+  });
+
+  it("has no photos when the live listing has none, instead of throwing", async () => {
+    const row = await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive: async () => vehicle({ id: "99", photoUrls: [] }),
+      onLiveHit: () => {},
+    });
+    expect(row!.photos).toEqual([]);
+  });
+
+  it("returns null when LesPAC does not know the id either — a real 404", async () => {
+    const onLiveHit = vi.fn();
+    expect(
+      await resolveVehicleForPage("999999999", {
+        fromSnapshot: async () => null,
+        fromLive: async () => null,
+        onLiveHit,
+      }),
+    ).toBeNull();
+    // A bot probing junk ids must not write a line per request.
+    expect(onLiveHit).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the live call throws — an outage is a 404, never a 500", async () => {
+    const onLiveError = vi.fn();
+    const boom = new Error("Lespac GET /listings/99 → 503");
+
+    const row = await resolveVehicleForPage("99", {
+      fromSnapshot: async () => null,
+      fromLive: async () => {
+        throw boom;
+      },
+      onLiveError,
+    });
+
+    expect(row).toBeNull();
+    expect(onLiveError).toHaveBeenCalledWith("99", boom);
+  });
+});
+
+describe("liveAsSnapshotVehicle", () => {
+  it("keeps photo order and marks nothing as mirrored", () => {
+    const snap = liveAsSnapshotVehicle(
+      vehicle({ photoUrls: ["https://cdn.lespac.com/0.jpg", "https://cdn.lespac.com/1.jpg"] }),
+    );
+    expect(snap.photos.map((p) => p.position)).toEqual([0, 1]);
+    expect(snap.photos.every((p) => p.storagePath === null)).toBe(true);
+    expect(snap.status).toBe("online");
   });
 });
 
