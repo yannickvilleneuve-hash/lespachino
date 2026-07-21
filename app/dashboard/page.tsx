@@ -89,7 +89,8 @@ function SyncTile({ status }: { status: SyncStatus }) {
               <>
                 {" · "}
                 <span className="font-semibold">{status.count}</span>{" "}
-                {status.count === 1 ? "véhicule écrit" : "véhicules écrits"}
+                {/* En français, zéro prend le singulier: « 0 véhicule écrit ». */}
+                {Math.abs(status.count ?? 0) < 2 ? "véhicule écrit" : "véhicules écrits"}
               </>
             )}
           </p>

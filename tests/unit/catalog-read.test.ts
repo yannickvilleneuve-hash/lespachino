@@ -7,6 +7,7 @@ import {
   toSnapshotVehicle,
   liveAsSnapshotVehicle,
   resolveVehicleForPage,
+  getSyncStatus,
   syncHealth,
   staleThresholdSec,
   formatAgeFr,
@@ -342,5 +343,25 @@ describe("resolveVehicleForPage — bound on the live fallback", () => {
     });
 
     expect(row?.vehicle.id).toBe("99");
+  });
+});
+
+describe("getSyncStatus — never throws", () => {
+  it("reports an unknown state instead of crashing the dashboard", async () => {
+    // No service-role key: createAdminClient() throws on the very first line.
+    // The dashboard must degrade to "état inconnu", never to a 500 — an
+    // operator page that dies when the database is unreachable is the one page
+    // you need most at that moment.
+    const saved = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      const status = await getSyncStatus(new Date("2026-07-21T12:00:00.000Z"));
+      expect(status.health).toBe("unknown");
+      expect(status.ranAt).toBeNull();
+      // Unknown is an absence of a verdict — it must never be painted green.
+      expect(status.health).not.toBe("fresh");
+    } finally {
+      if (saved !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = saved;
+    }
   });
 });

@@ -261,6 +261,31 @@ describe("fetchCatalogIncremental", () => {
     expect(getByListingId).toHaveBeenCalledTimes(1);
   });
 
+  it("prefers an unknown id over a stale one when age cannot break the tie", async () => {
+    const getByListingId = vi.fn(async (id: number) => detail({ listingId: id }));
+    const r = await fetchCatalogIncremental(
+      // detail_fetched_at NULL — the stored row sorts as "never fetched", the
+      // exact same age an unknown id carries.
+      makeSupabase([stored("1", null)]),
+      {
+        listAll: async () => [summary({ listingId: 1 }), summary({ listingId: 2 })],
+        getByListingId,
+        now: NOW,
+        ttlSec: 3600,
+        budget: 1,
+      },
+    );
+
+    // Age is identical, so only the tier can decide. Remove `a.tier - b.tier`
+    // from the sort and listing 1 wins on stable order — this test is what makes
+    // that term load-bearing instead of decorative.
+    expect(getByListingId).toHaveBeenCalledWith(2);
+    expect(getByListingId).toHaveBeenCalledTimes(1);
+    expect(r.refreshedIds).toEqual(["2"]);
+    // The stale one still ships, from its stored payload.
+    expect(r.vehicles.map((v) => v.id).sort()).toEqual(["1", "2"]);
+  });
+
   it("spends the cap on unknown ids before refreshes", async () => {
     const getByListingId = vi.fn(async (id: number) => detail({ listingId: id }));
     const r = await fetchCatalogIncremental(
