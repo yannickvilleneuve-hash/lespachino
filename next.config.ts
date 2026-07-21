@@ -14,6 +14,22 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.lespaccdn.com" },
     ],
   },
+  async headers() {
+    return [
+      {
+        // Scoped to the inventory index on purpose: /feeds must not inherit a
+        // CSP, and the vehicle detail page opens full-page, never framed.
+        source: "/vehicule",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://camion-hino.ca https://www.camion-hino.ca",
+          },
+        ],
+      },
+    ];
+  },
   experimental: {
     serverActions: {
       // Server Actions arrivent via Cloudflare Worker → x-forwarded-host
