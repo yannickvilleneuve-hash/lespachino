@@ -144,13 +144,17 @@ export async function runCatalogSync(
 
   // Anything the fetch did not return is gone from LesPAC: sold, or deactivated
   // and about to be re-posted under a new listingId. Indistinguishable from here.
-  const knownIds = fresh.map((v) => v.id);
+  //
+  // Except for `retainIds`: ids the fetch path saw ONLINE upstream but could not
+  // ship this cycle (see CatalogFetchResult). "Not shipped" is not "sold", and
+  // sweeping them would pull a live truck off the site and out of the Meta feed.
+  const keepIds = [...new Set([...fresh.map((v) => v.id), ...(result.retainIds ?? [])])];
   const { data: rows, error: listErr } = await supabase
     .from("catalog_vehicle")
     .select("id, status");
   note("vehicle list", listErr);
   const soldCount = (rows ?? []).filter(
-    (r) => r.status === "online" && !knownIds.includes(r.id),
+    (r) => r.status === "online" && !keepIds.includes(r.id),
   ).length;
 
   if (soldCount > 0) {
@@ -158,7 +162,7 @@ export async function runCatalogSync(
       .from("catalog_vehicle")
       .update({ status: "sold", sold_at: now })
       .eq("status", "online")
-      .not("id", "in", `(${knownIds.join(",")})`);
+      .not("id", "in", `(${keepIds.join(",")})`);
     note("mark sold", soldErr);
   }
 

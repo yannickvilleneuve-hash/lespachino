@@ -55,4 +55,15 @@ export interface CatalogFetchResult {
   /** LesPAC detail calls actually issued this cycle. */
   detailFetches: number;
   refreshedIds: string[];
+  /**
+   * Ids still ONLINE upstream that this cycle could not ship: the per-cycle
+   * detail budget clipped them AND their stored payload was unusable, so there
+   * was nothing to fall back on. They are absent from `vehicles`, but they are
+   * NOT sold — `runCatalogSync` must leave those rows alone instead of sweeping
+   * them, or a live truck drops off the site and out of the Meta feed until some
+   * later cycle happens to re-fetch it.
+   *
+   * Omitted by the full-sweep path, which ships everything it reads.
+   */
+  retainIds?: string[];
 }

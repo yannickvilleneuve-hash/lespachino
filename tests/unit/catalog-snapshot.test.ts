@@ -209,6 +209,27 @@ describe("runCatalogSync", () => {
     expect(c.soldUpdates[0].notIn).toEqual(["1"]);
   });
 
+  it("does NOT mark retained ids as sold", async () => {
+    const c = emptyCapture([
+      { id: "1", status: "online" },
+      { id: "2", status: "online" },
+      { id: "3", status: "online" },
+    ]);
+    const result = await runCatalogSync(makeSupabase(c), async () => ({
+      vehicles: [vehicle({ id: "1" })],
+      detailFetches: 1,
+      refreshedIds: ["1"],
+      retainIds: ["2"],
+    }));
+
+    // 2 is still ONLINE on LesPAC — the fetch path just had nothing shippable
+    // for it this cycle. Sweeping it would pull a live truck off the site and
+    // out of the Meta feed. 3 really is gone.
+    expect(result.sold).toBe(1);
+    expect(c.soldUpdates).toHaveLength(1);
+    expect(c.soldUpdates[0].notIn).toEqual(["1", "2"]);
+  });
+
   it("brings a re-listed vehicle back online and clears sold_at", async () => {
     const c = emptyCapture([{ id: "1", status: "sold" }]);
     await runCatalogSync(makeSupabase(c), async () => [vehicle({ id: "1" })]);

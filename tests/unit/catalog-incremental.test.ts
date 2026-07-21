@@ -69,13 +69,41 @@ interface StoredRow {
   detail_fetched_at: string | null;
 }
 
-/** Minimal stand-in for the admin client: one `select` on catalog_vehicle. */
-function makeSupabase(rows: StoredRow[], error: { message: string } | null = null) {
+interface SelectResult {
+  data: StoredRow[] | null;
+  error: { message: string } | null;
+}
+
+/** A thenable PostgREST-ish query: `.eq()` chains, `await` resolves. */
+interface Query {
+  eq(col: string, val: string): Query;
+  then(resolve: (v: SelectResult) => unknown): Promise<unknown>;
+}
+
+/**
+ * Minimal stand-in for the admin client: one `select` on catalog_vehicle.
+ * `filters` collects the `.eq()` calls so a test can assert what was filtered.
+ */
+function makeSupabase(
+  rows: StoredRow[],
+  error: { message: string } | null = null,
+  filters: Array<[string, string]> = [],
+) {
+  const result: SelectResult = { data: error ? null : rows, error };
   return {
     from() {
       return {
         select() {
-          return Promise.resolve({ data: error ? null : rows, error });
+          const query: Query = {
+            eq(col, val) {
+              filters.push([col, val]);
+              return query;
+            },
+            then(resolve) {
+              return Promise.resolve(result).then(resolve);
+            },
+          };
+          return query;
         },
       };
     },
@@ -180,11 +208,14 @@ describe("fetchCatalogIncremental", () => {
 
   it("respects the per-cycle cap and spends it on the oldest first", async () => {
     const getByListingId = vi.fn(async (id: number) => detail({ listingId: id }));
+    // List order and age order DISAGREE on purpose. Candidates are built in
+    // listAll order, so if the age tiebreak were dropped an unsorted slice would
+    // take 1 and 2 and still look plausible — this fixture makes that fail.
     const rows = [
-      stored("1", 600), // oldest
-      stored("2", 300),
-      stored("3", 120),
-      stored("4", 61), // youngest still past a 60 min TTL
+      stored("1", 61), // youngest, but first in the LesPAC list
+      stored("2", 120),
+      stored("3", 600), // oldest, but third
+      stored("4", 300),
     ];
     const r = await fetchCatalogIncremental(makeSupabase(rows), {
       listAll: async () => [1, 2, 3, 4].map((id) => summary({ listingId: id })),
@@ -197,10 +228,37 @@ describe("fetchCatalogIncremental", () => {
     // A mass TTL expiry must not turn into a 24-request spike.
     expect(getByListingId).toHaveBeenCalledTimes(2);
     expect(r.detailFetches).toBe(2);
-    expect(r.refreshedIds).toEqual(["1", "2"]);
+    // 24 listings against a budget of 8 means the budget is saturated 3 cycles
+    // out of 4. Without oldest-first, the same few listings win every time and
+    // one truck can sit at a stale price indefinitely.
+    expect(r.refreshedIds).toEqual(["3", "4"]);
+    expect(getByListingId).toHaveBeenNthCalledWith(1, 3);
+    expect(getByListingId).toHaveBeenNthCalledWith(2, 4);
     // The two that lost the budget still ship their stored payload: dropping
     // them would make runCatalogSync mark two live trucks as SOLD.
     expect(r.vehicles.map((v) => v.id)).toEqual(["1", "2", "3", "4"]);
+    expect(r.retainIds).toEqual([]);
+  });
+
+  it("orders by age INSIDE the changed-title tier too", async () => {
+    const getByListingId = vi.fn(async (id: number) => detail({ listingId: id }));
+    // Both titles moved, so both are TIER_CHANGED; only the age separates them,
+    // and again the list order points the other way.
+    const rows = [stored("1", 30), stored("2", 45)];
+    const r = await fetchCatalogIncremental(makeSupabase(rows), {
+      listAll: async () => [
+        summary({ listingId: 1, title: "Isuzu NRR 2022 — réduit" }),
+        summary({ listingId: 2, title: "Isuzu NRR 2022 — réduit" }),
+      ],
+      getByListingId,
+      now: NOW,
+      ttlSec: 3600,
+      budget: 1,
+    });
+
+    expect(r.refreshedIds).toEqual(["2"]);
+    expect(getByListingId).toHaveBeenCalledWith(2);
+    expect(getByListingId).toHaveBeenCalledTimes(1);
   });
 
   it("spends the cap on unknown ids before refreshes", async () => {
@@ -286,6 +344,46 @@ describe("fetchCatalogIncremental", () => {
     // its timestamp is fresh.
     expect(r.detailFetches).toBe(1);
     expect(r.vehicles).toHaveLength(1);
+  });
+
+  it("RETAINS an unusable-payload row the budget clipped, instead of losing it", async () => {
+    const getByListingId = vi.fn(async (id: number) => detail({ listingId: id }));
+    // Two rows we hold, both online upstream, both with a payload too broken to
+    // ship (no photoUrls). Only one fits in the budget.
+    const rows: StoredRow[] = [
+      { id: "1", payload: { id: "1", title: "Isuzu NRR 2022" }, detail_fetched_at: null },
+      { id: "2", payload: { id: "2", title: "Isuzu NRR 2022" }, detail_fetched_at: null },
+    ];
+    const r = await fetchCatalogIncremental(makeSupabase(rows), {
+      listAll: async () => [summary({ listingId: 1 }), summary({ listingId: 2 })],
+      getByListingId,
+      now: NOW,
+      budget: 1,
+    });
+
+    expect(r.detailFetches).toBe(1);
+    // 2 is NOT shipped — a broken payload must never reach a public feed — but
+    // it must be named, or runCatalogSync sweeps a truck LesPAC just reported
+    // ONLINE into status='sold' and it vanishes from /vehicule and the feed.
+    expect(r.vehicles.map((v) => v.id)).toEqual(["1"]);
+    expect(r.retainIds).toEqual(["2"]);
+  });
+
+  it("reads ONLY the online rows from the snapshot", async () => {
+    const filters: Array<[string, string]> = [];
+    const getByListingId = vi.fn(async () => detail());
+    await fetchCatalogIncremental(makeSupabase([stored("1", 10)], null, filters), {
+      listAll: async () => [summary({ listingId: 1 })],
+      getByListingId,
+      now: NOW,
+      ttlSec: 3600,
+    });
+
+    // Sold rows are never deleted, and none of them can ever be reused. An
+    // unfiltered select drags every payload the dealer has ever listed out of
+    // Postgres 96 times a day, forever.
+    expect(filters).toEqual([["status", "online"]]);
+    expect(getByListingId).not.toHaveBeenCalled();
   });
 
   it("drops a listing whose detail 404s mid-cycle", async () => {
