@@ -1768,8 +1768,13 @@ Cette tâche est la raison d'être du découpage en phases. Si un seul de ces co
 
 - [ ] **Step 1: Vérifier qu'aucun fichier de feed n'a été touché**
 
-Run: `git diff main --stat -- lib/feeds app/feeds`
+Run: `git diff 1987066 --stat -- lib/feeds app/feeds`
 Expected: **sortie vide**. Un seul fichier listé = arrêt immédiat et retour en arrière sur ce fichier.
+
+`1987066` est le HEAD d'avant la tâche 1, pas `main`: tout le système de feeds
+(9 fichiers, 560 lignes) vit sur la branche `feat/meta-vehicle-feed` et n'est pas
+mergé dans main. Comparer à main noierait notre diff dans du code de feed
+préexistant et rendrait le contrôle inutilisable.
 
 - [ ] **Step 2: Lancer toute la suite de tests**
 
