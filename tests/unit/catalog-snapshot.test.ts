@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { runCatalogSync } from "@/lib/catalog/snapshot";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 
@@ -84,10 +84,20 @@ function makeSupabase(c: Capture) {
         },
       };
     },
+    storage: {
+      from() {
+        return { upload: () => Promise.resolve({ data: null, error: { message: "no storage in test" } }) };
+      },
+    },
   } as unknown as Parameters<typeof runCatalogSync>[0];
 }
 
 describe("runCatalogSync", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404 })));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   it("writes the fetched vehicles and their photos", async () => {
     const c = emptyCapture();
     const result = await runCatalogSync(makeSupabase(c), async () => [
