@@ -134,6 +134,86 @@ export type Database = {
         }
         Relationships: []
       }
+      catalog_photo: {
+        Row: {
+          position: number
+          source_url: string
+          storage_path: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          position: number
+          source_url: string
+          storage_path?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          position?: number
+          source_url?: string
+          storage_path?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_photo_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_vehicle"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_sync: {
+        Row: {
+          count: number
+          error: string | null
+          id: number
+          ok: boolean
+          ran_at: string
+        }
+        Insert: {
+          count?: number
+          error?: string | null
+          id?: number
+          ok?: boolean
+          ran_at?: string
+        }
+        Update: {
+          count?: number
+          error?: string | null
+          id?: number
+          ok?: boolean
+          ran_at?: string
+        }
+        Relationships: []
+      }
+      catalog_vehicle: {
+        Row: {
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          payload: Json
+          sold_at: string | null
+          status: string
+        }
+        Insert: {
+          first_seen_at?: string
+          id: string
+          last_seen_at?: string
+          payload: Json
+          sold_at?: string | null
+          status?: string
+        }
+        Update: {
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload?: Json
+          sold_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       lead: {
         Row: {
           assigned_to_email: string | null
