@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import { fetchCatalog } from "@/lib/catalog/fetch";
 import { selectEligible } from "@/lib/feeds/eligibility";
 import { resolveFeedOrigin } from "@/lib/feeds/origin";
+import { chooseFeedSource } from "@/lib/feeds/floor";
+import { snapshotCatalog } from "@/lib/feeds/snapshot-source";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 
 type FeedBuilder = (opts: {
@@ -29,8 +31,45 @@ export async function serveFeed(
     },
   );
 
-  const catalog = await fetchCatalog();
-  const { eligible, skipped, warnings } = selectEligible(catalog);
+  // Deux sources, jamais une seule: un LesPAC qui répond 200 avec une liste
+  // vide viderait le catalogue Meta sans qu'aucune erreur n'apparaisse.
+  const live = await fetchCatalog().catch((err) => {
+    console.error(`[feed:${label}] lecture LesPAC en échec, repli sur le snapshot:`, err);
+    return null;
+  });
+  const snapshot = await snapshotCatalog().catch((err) => {
+    console.error(`[feed:${label}] snapshot illisible:`, err);
+    return null;
+  });
+
+  const liveSel = live ? selectEligible(live) : null;
+  const snapSel = snapshot ? selectEligible(snapshot) : null;
+  const source = chooseFeedSource(liveSel?.eligible.length ?? 0, snapSel?.eligible.length ?? 0);
+
+  if (source === "refuse") {
+    // 503 et surtout PAS un 200 vide: Meta conserve sa dernière copie valide et
+    // les publicités continuent de tourner pendant qu'on répare.
+    console.error(
+      `[feed:${label}] REFUS de servir: live=${liveSel?.eligible.length ?? "n/a"} ` +
+        `snapshot=${snapSel?.eligible.length ?? "n/a"} — le catalogue distant garde sa copie`,
+    );
+    return new Response("feed indisponible", {
+      status: 503,
+      headers: { "Retry-After": "900", "Cache-Control": "no-store", "X-Feed-Source": "refuse" },
+    });
+  }
+
+  const chosen = source === "live" ? liveSel! : snapSel!;
+  const catalog = source === "live" ? live! : snapshot!;
+  const { eligible, skipped, warnings } = chosen;
+
+  if (source === "snapshot") {
+    console.warn(
+      `[feed:${label}] servi depuis le SNAPSHOT (${eligible.length} véhicules): ` +
+        `le live n'en rendait que ${liveSel?.eligible.length ?? 0}`,
+    );
+  }
+
   const xml = build({ origin, vehicles: eligible });
 
   // Platforms silently ignore rejected items. Our own exclusions are deliberate,
@@ -50,6 +89,7 @@ export async function serveFeed(
     headers: {
       "Content-Type": contentType,
       "Cache-Control": "public, max-age=900, s-maxage=900",
+      "X-Feed-Source": source,
       "X-Feed-Total": String(catalog.length),
       "X-Feed-Included": String(eligible.length),
       "X-Feed-Skipped": String(skipped.length),
