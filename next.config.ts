@@ -25,9 +25,21 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Scoped to the inventory index on purpose: /feeds must not inherit a
+        // Scoped to the framed routes on purpose: /feeds must not inherit a
         // CSP, and the vehicle detail page opens full-page, never framed.
+        // `source` matches exactly, so the carrousel needs its own entry — it
+        // is a sub-path of /vehicule and would otherwise ship no CSP at all.
         source: "/vehicule",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://camion-hino.ca https://www.camion-hino.ca",
+          },
+        ],
+      },
+      {
+        source: "/vehicule/carrousel",
         headers: [
           {
             key: "Content-Security-Policy",

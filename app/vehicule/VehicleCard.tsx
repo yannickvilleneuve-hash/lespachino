@@ -2,20 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { photoSrc, type SnapshotVehicle } from "@/lib/catalog/read";
 import { hasPlausibleOdometer } from "@/lib/feeds/eligibility";
-
-function displayTitle(v: SnapshotVehicle["vehicle"]): string {
-  const parts = [v.year, v.make, v.model].filter((p) => p !== null && p !== "");
-  return parts.join(" ").trim() || v.title;
-}
-
-function displayPrice(priceCad: number | null): string {
-  if (priceCad == null) return "Prix à discuter";
-  return new Intl.NumberFormat("fr-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(priceCad);
-}
+import { displayPrice, displayTitle } from "./format";
 
 export function VehicleCard({ row }: { row: SnapshotVehicle }) {
   const v = row.vehicle;
