@@ -60,6 +60,38 @@ d'injecter une hauteur. Ne pas le retirer.
 - Un clic sur une carte ouvre la fiche en **nouvel onglet**, hors iframe: le
   formulaire de contact s'utilise en pleine page.
 
+## Le carrousel de l'accueil (page 59)
+
+Bande des 8 camions les plus récents, à coller sous « des camions pour tous vos
+besoins », dans un bloc **HTML personnalisé**:
+
+```html
+<iframe
+  src="https://feeds.hinochicoutimi.com/vehicule/carrousel"
+  title="Camions en stock — Centre du camion Hino"
+  style="width:100%; border:0; display:block; height:380px"
+  scrolling="no"
+  loading="lazy"
+></iframe>
+```
+
+**Pas de script ici, et c'est voulu.** La bande a une hauteur constante de 380 px
+quel que soit le nombre de camions, donc l'iframe prend la même hauteur en dur:
+rien à recalculer, rien qui casse si un script est bloqué. C'est la différence
+avec `/vehicule`, dont la hauteur dépend du nombre de cartes.
+
+Ne pas remplacer `height` par une hauteur en pourcentage: une iframe en `%` dans
+un conteneur sans hauteur explicite se réduit à zéro et la bande disparaît.
+
+Côté app: `/vehicule/carrousel` a sa **propre** entrée `frame-ancestors` dans
+`next.config.ts` — `source` y compare le chemin exact, l'entrée `/vehicule` ne
+couvre donc pas le sous-chemin. Le tunnel Cloudflare, lui, l'accepte déjà
+(`^/(feeds|_next|vehicule)(/|$)`).
+
+Comportement: une carte s'ouvre en **nouvel onglet** (`_blank`), la tuile « voir
+tout l'inventaire » navigue la page **entière** (`_top`) vers
+`camion-hino.ca/inventaire` — on ne met pas une page dans une page.
+
 ## Quand le sous-domaine arrivera
 
 Voir `docs/superpowers/specs/2026-07-21-inventaire-site-web-design.md`, section
