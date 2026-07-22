@@ -621,6 +621,48 @@ export type Database = {
         }
         Relationships: []
       }
+      watchdog_check: {
+        Row: {
+          alerted_at: string | null
+          consecutive_red: number
+          detail: string | null
+          feed_included: number | null
+          feed_source: string | null
+          feed_status: number | null
+          id: number
+          ran_at: string
+          sync_age_sec: number | null
+          sync_ok: boolean | null
+          verdict: string
+        }
+        Insert: {
+          alerted_at?: string | null
+          consecutive_red?: number
+          detail?: string | null
+          feed_included?: number | null
+          feed_source?: string | null
+          feed_status?: number | null
+          id?: number
+          ran_at?: string
+          sync_age_sec?: number | null
+          sync_ok?: boolean | null
+          verdict: string
+        }
+        Update: {
+          alerted_at?: string | null
+          consecutive_red?: number
+          detail?: string | null
+          feed_included?: number | null
+          feed_source?: string | null
+          feed_status?: number | null
+          id?: number
+          ran_at?: string
+          sync_age_sec?: number | null
+          sync_ok?: boolean | null
+          verdict?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

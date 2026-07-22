@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppHeader from "@/app/app-header";
 import { getSyncStatus, formatAgeFr, listOnlineVehicles, type SyncStatus } from "@/lib/catalog/read";
 import { findTruncatedModels, type TruncatedModel } from "@/lib/catalog/quality";
+import { getWatchdogStatus, type WatchdogStatus } from "@/lib/watchdog/status";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,11 @@ async function findSuspects(): Promise<TruncatedModel[] | null> {
 }
 
 export default async function DashboardPage() {
-  const [sync, suspects] = await Promise.all([getSyncStatus(), findSuspects()]);
+  const [sync, suspects, watchdog] = await Promise.all([
+    getSyncStatus(),
+    findSuspects(),
+    getWatchdogStatus(),
+  ]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -28,6 +33,7 @@ export default async function DashboardPage() {
         <section className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           <SyncTile status={sync} />
           <TruncatedModelsTile suspects={suspects} />
+          <WatchdogTile status={watchdog} />
         </section>
 
         <nav className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -200,6 +206,55 @@ function TruncatedModelsTile({ suspects }: { suspects: TruncatedModel[] | null }
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const WATCHDOG_TONE = {
+  ok: { card: "border-emerald-300 bg-emerald-50", chip: "bg-emerald-100 text-emerald-800", label: "En veille" },
+  alerte: { card: "border-red-300 bg-red-50", chip: "bg-red-100 text-red-800", label: "Alerte" },
+  muet: { card: "border-red-300 bg-red-50", chip: "bg-red-100 text-red-800", label: "Muet" },
+  inconnu: { card: "border-amber-300 bg-amber-50", chip: "bg-amber-100 text-amber-800", label: "Jamais passé" },
+} as const;
+
+/**
+ * Le chien de garde vit hors de cette machine (Edge Function Supabase, aux 15
+ * min). Cette tuile surveille le surveillant: sans elle, un chien de garde
+ * arrêté remplacerait une panne muette par une autre, en plus silencieuse.
+ */
+function WatchdogTile({ status }: { status: WatchdogStatus }) {
+  const tone = WATCHDOG_TONE[status.health];
+  return (
+    <div className={`p-5 rounded shadow border ${tone.card}`}>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="font-semibold">Surveillance externe</h3>
+        <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${tone.chip}`}>
+          {tone.label}
+        </span>
+      </div>
+
+      {status.health === "inconnu" ? (
+        <p className="text-xs text-gray-600">
+          Aucun passage enregistré. Vérifier la tâche <code className="font-mono">pipeline-watchdog</code>.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-gray-800">
+            Dernier passage {formatAgeFr(status.ageSec)} · verdict{" "}
+            <span className="font-mono font-semibold">{status.verdict}</span>
+          </p>
+          {status.health === "muet" && (
+            <p className="mt-2 text-xs text-red-800">
+              Le chien de garde lui-même ne répond plus: plus rien ne vous préviendra d’une panne.
+            </p>
+          )}
+          {status.detail && status.verdict !== "OK" && (
+            <p className="mt-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-800">
+              {status.detail}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
