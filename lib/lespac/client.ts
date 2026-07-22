@@ -1,26 +1,32 @@
 import { getLespacConfig } from "./config";
-import type { LespacListing, LespacListingSummary, LespacSaveResponse } from "./types";
+import type { LespacListing, LespacListingSummary } from "./types";
 
-async function lespacFetch<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
+/**
+ * LesPAC, en LECTURE SEULE — et c'est structurel, pas une convention.
+ *
+ * La méthode HTTP est écrite en dur ici: ce module ne peut pas émettre autre
+ * chose qu'un GET. Ajouter une écriture demande de rouvrir volontairement cette
+ * porte, pas d'appeler une fonction qui traînait.
+ *
+ * Pourquoi c'est verrouillé: LesPAC est la source #1 de l'inventaire, saisie à
+ * la main par le concessionnaire. Une ancienne version de pacman y poussait des
+ * annonces composées depuis un export externe, et elle y a laissé quatre
+ * annonces au modèle tronqué (« TRANSIT T- ») et au lien vendeur mort. Le
+ * miroir ne réécrit pas sa source.
+ */
+async function lespacGet<T>(path: string): Promise<T> {
   const { token, baseUrl } = getLespacConfig();
-  const url = `${baseUrl}${path}`;
-  const res = await fetch(url, {
-    method,
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: "GET",
     headers: {
       Authorization: `LPC token="${token}"`,
-      "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Lespac ${method} ${path} → ${res.status}: ${text.slice(0, 400)}`);
+    throw new Error(`Lespac GET ${path} → ${res.status}: ${text.slice(0, 400)}`);
   }
 
   const ct = res.headers.get("content-type") ?? "";
@@ -30,65 +36,18 @@ async function lespacFetch<T>(
   return (await res.json()) as T;
 }
 
-/** Crée ou met à jour une annonce par notre identifiant (vendorId = unit#). */
-export function upsertByVendorId(
-  vendorId: string,
-  listing: LespacListing,
-  deactivatePublication = false,
-): Promise<LespacSaveResponse> {
-  const qs = deactivatePublication ? "?deactivatePublication=true" : "";
-  return lespacFetch<LespacSaveResponse>(
-    "PUT",
-    `/sell-api/v1.0/listings/vendorId/${encodeURIComponent(vendorId)}${qs}`,
-    listing,
-  );
-}
-
-export function deleteByVendorId(vendorId: string): Promise<void> {
-  return lespacFetch<void>(
-    "DELETE",
-    `/sell-api/v1.0/listings/vendorId/${encodeURIComponent(vendorId)}`,
-  );
-}
-
-export function activateByVendorId(vendorId: string): Promise<LespacListingSummary> {
-  return lespacFetch<LespacListingSummary>(
-    "PUT",
-    `/sell-api/v1.0/listings/vendorId/${encodeURIComponent(vendorId)}/activate`,
-  );
-}
-
-export function deactivateByVendorId(vendorId: string): Promise<LespacListingSummary> {
-  return lespacFetch<LespacListingSummary>(
-    "PUT",
-    `/sell-api/v1.0/listings/vendorId/${encodeURIComponent(vendorId)}/deactivate`,
-  );
-}
-
-/** Détail complet d'une annonce par listingId Lespac (utile pour les annonces
- *  manuelles sans vendorId). */
+/** Détail complet d'une annonce par listingId Lespac. */
 export function getByListingId(listingId: number): Promise<LespacListing | null> {
-  return lespacFetch<LespacListing | null>(
-    "GET",
-    `/sell-api/v1.0/listings/${listingId}`,
-  ).catch((err) => {
+  return lespacGet<LespacListing | null>(`/sell-api/v1.0/listings/${listingId}`).catch((err) => {
     if (err instanceof Error && /→ 404:/.test(err.message)) return null;
     throw err;
   });
 }
 
-/** Désactive une annonce par listingId (pour les annonces manuelles sans
- *  vendorId qu'on remplace par notre version API). */
-export function deactivateByListingId(listingId: number): Promise<LespacListingSummary> {
-  return lespacFetch<LespacListingSummary>(
-    "PUT",
-    `/sell-api/v1.0/listings/${listingId}/deactivate`,
-  );
-}
-
+/** Détail d'une annonce par notre identifiant (vendorId = unit#), quand elle en
+ *  a un: seules les annonces créées par l'ancienne version en portent. */
 export function getByVendorId(vendorId: string): Promise<LespacListing | null> {
-  return lespacFetch<LespacListing | null>(
-    "GET",
+  return lespacGet<LespacListing | null>(
     `/sell-api/v1.0/listings/vendorId/${encodeURIComponent(vendorId)}`,
   ).catch((err) => {
     if (err instanceof Error && /→ 404:/.test(err.message)) return null;
@@ -97,8 +56,7 @@ export function getByVendorId(vendorId: string): Promise<LespacListing | null> {
 }
 
 export async function listAll(): Promise<LespacListingSummary[]> {
-  const res = await lespacFetch<{ listingSummary: LespacListingSummary }[] | LespacListingSummary[]>(
-    "GET",
+  const res = await lespacGet<{ listingSummary: LespacListingSummary }[] | LespacListingSummary[]>(
     "/sell-api/v1.0/listings",
   );
   // L'API retourne parfois des entrées avec un wrapper `listingSummary`.
