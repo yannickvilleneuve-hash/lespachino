@@ -44,17 +44,27 @@ describe("displayPrice", () => {
 });
 
 describe("displayTitle", () => {
-  it("builds year + make + model", () => {
-    expect(displayTitle(vehicle())).toBe("2022 Isuzu NRR");
+  it("copy-pastes the LesPAC listing title", () => {
+    expect(displayTitle(vehicle())).toBe(
+      "Isuzu NRR 2022 avec Fourgon de 20 pieds",
+    );
   });
 
-  it("skips the parts it does not have", () => {
-    expect(displayTitle(vehicle({ year: null }))).toBe("Isuzu NRR");
-    expect(displayTitle(vehicle({ model: "" }))).toBe("2022 Isuzu");
+  it("ignores wrong year/make/model attrs when a LesPAC title exists", () => {
+    expect(
+      displayTitle(
+        vehicle({
+          title: "Hino L8 2026 avec Fourgon 26 pieds Isolé ( Frio )",
+          year: 2024,
+          make: "Hino",
+          model: "L7",
+        }),
+      ),
+    ).toBe("Hino L8 2026 avec Fourgon 26 pieds Isolé ( Frio )");
   });
 
-  it("falls back to the LesPAC title when year, make and model are all missing", () => {
-    const v = vehicle({ year: null, make: "", model: "" });
-    expect(displayTitle(v)).toBe("Isuzu NRR 2022 avec Fourgon de 20 pieds");
+  it("falls back to year + make + model only when the LesPAC title is empty", () => {
+    expect(displayTitle(vehicle({ title: "" }))).toBe("2022 Isuzu NRR");
+    expect(displayTitle(vehicle({ title: "   " }))).toBe("2022 Isuzu NRR");
   });
 });

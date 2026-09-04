@@ -7,6 +7,7 @@ import { Oswald } from "next/font/google";
 import { resolveVehicleForPage, photoSrc } from "@/lib/catalog/read";
 import { hasPlausibleOdometer } from "@/lib/feeds/eligibility";
 import { getDealerConfig, telHref } from "@/lib/dealer/config";
+import { displayTitle } from "../format";
 import type { CatalogVehicle } from "@/lib/catalog/types";
 import { LeadForm } from "./LeadForm";
 
@@ -25,10 +26,6 @@ interface PageProps {
  */
 const loadVehicle = cache((id: string) => resolveVehicleForPage(id));
 
-function displayTitle(v: CatalogVehicle): string {
-  const parts = [v.year, v.make, v.model].filter((p) => p !== null && p !== "");
-  return parts.join(" ").trim() || v.title;
-}
 
 function displayPrice(priceCad: number | null): string {
   if (priceCad == null) return "Prix à discuter";

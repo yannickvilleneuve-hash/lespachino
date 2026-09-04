@@ -1,14 +1,18 @@
 import type { CatalogVehicle } from "@/lib/catalog/types";
 
 /**
- * Year + make + model, falling back to the LesPAC title.
+ * Public title = LesPAC listing title, copy-paste.
  *
- * Shared by the index grid and the home-page strip on purpose: two cards that
- * name the same truck differently look like two different trucks.
+ * Year/make/model attrs on LesPAC are often wrong (dropdown "Modèle", stale
+ * year). The title is what the dealer typed and what buyers see on LesPAC —
+ * the vitrine must match that string. Structured year/make/model stay on the
+ * vehicle for Meta/Google feeds only.
  */
 export function displayTitle(v: CatalogVehicle): string {
+  const title = (v.title ?? "").trim();
+  if (title) return title;
   const parts = [v.year, v.make, v.model].filter((p) => p !== null && p !== "");
-  return parts.join(" ").trim() || v.title;
+  return parts.join(" ").trim();
 }
 
 /**
