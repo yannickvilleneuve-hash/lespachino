@@ -52,7 +52,7 @@ describe("buildGoogleVlaFeed", () => {
 
   it("leaves title and description un-namespaced, as RSS requires", () => {
     const xml = buildGoogleVlaFeed({ origin, vehicles: [vehicle()], address });
-    expect(xml).toContain("<title>2019 Ford E-450</title>");
+    expect(xml).toContain("<title>Ford E-450 2019 avec Fourgon de 16 pieds</title>");
     expect(xml).not.toContain("<g:title>");
     expect(xml).not.toContain("<g:description>");
   });

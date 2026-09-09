@@ -37,12 +37,27 @@ describe("formatFeedPrice", () => {
 });
 
 describe("feedTitle", () => {
-  it("joins year, make, model", () => {
-    expect(feedTitle(vehicle())).toBe("2022 Isuzu NRR");
+  it("uses the LesPAC listing title when present (mirror)", () => {
+    expect(feedTitle(vehicle())).toBe("Isuzu NRR 2022 avec Fourgon de 20 pieds");
   });
 
-  it("skips empty parts rather than leaving double spaces", () => {
-    expect(feedTitle(vehicle({ model: "" }))).toBe("2022 Isuzu");
+  it("prefers LesPAC title even when year/make/model attrs disagree", () => {
+    expect(
+      feedTitle(
+        vehicle({
+          id: "222241038",
+          title: "Isuzu NRR 2024 avec Fourgon de 20 pieds et Monte-Charge",
+          year: 2022,
+          make: "Isuzu",
+          model: "NRR",
+        }),
+      ),
+    ).toBe("Isuzu NRR 2024 avec Fourgon de 20 pieds et Monte-Charge");
+  });
+
+  it("falls back to year/make/model when the LesPAC title is blank", () => {
+    expect(feedTitle(vehicle({ title: "" }))).toBe("2022 Isuzu NRR");
+    expect(feedTitle(vehicle({ title: "   ", model: "" }))).toBe("2022 Isuzu");
   });
 });
 

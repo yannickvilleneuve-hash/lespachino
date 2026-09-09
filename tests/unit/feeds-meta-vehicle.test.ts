@@ -147,7 +147,7 @@ describe("buildMetaVehicleFeed", () => {
       vehicles: [vehicle({ description: "" })],
       address,
     });
-    expect(xml).toContain("<description>2022 Isuzu NRR</description>");
+    expect(xml).toContain("<description>Isuzu NRR 2022 avec Fourgon de 20 pieds</description>");
   });
 
   it("emits the dealer address components", () => {

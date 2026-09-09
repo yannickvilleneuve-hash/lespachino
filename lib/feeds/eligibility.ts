@@ -73,8 +73,14 @@ export function xmlEscape(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
-/** The vehicle title platforms display: "2019 Ford E-450". */
+/**
+ * Title platforms display in Meta/Google feeds = LesPAC listing title
+ * (same rule as displayTitle on the vitrine). Year/make/model attrs are often
+ * wrong on LesPAC; the dealer-typed title is the mirror buyers see.
+ */
 export function feedTitle(v: CatalogVehicle): string {
+  const title = (v.title ?? "").trim();
+  if (title) return title;
   return [v.year, v.make, v.model]
     .filter((p) => p !== null && p !== "")
     .join(" ")
