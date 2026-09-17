@@ -83,8 +83,11 @@ Installation:
 2. Facultatif, dans `wp-config.php`:
    `define('HINO_CARROUSEL_PHONE', '418 xxx-xxxx');` — affiché dans le bloc de
    repli si l'app n'a jamais répondu.
-3. Page d'accueil → remplacer le bloc HTML de l'iframe par un bloc **Code
-   court** contenant `[hino_carrousel]`.
+3. Rien à faire dans la page d'accueil: le mu-plugin remplace lui-même
+   l'iframe `/vehicule/carrousel` (filtre `the_content`) dès que le JSON a
+   répondu une fois. Tant que l'app n'est pas déployée, l'iframe reste en
+   place. Au besoin, `[hino_carrousel]` dans un bloc **Code court** fait la
+   même chose ailleurs.
 4. Retirer le relais `/stock/` côté WordPress (plugin ou code du thème qui
    proxie vers l'app): il ne sert plus à rien et chaque requête qui y tombe
    démarre WordPress au complet.
