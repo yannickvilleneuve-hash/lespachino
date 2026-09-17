@@ -2,13 +2,14 @@
 /**
  * Plugin Name: Hino — carrousel des camions en stock
  * Description: Shortcode [hino_carrousel] qui rend la bande des 8 camions de l'accueil en HTML natif, à partir de /feeds/carrousel.json de l'app pacman. Remplace l'iframe.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      Centre du camion Hino
  *
  * Installation: copier ce fichier dans wp-content/mu-plugins/ (créer le dossier
  * s'il n'existe pas). Un mu-plugin est actif d'office, sans passer par
- * Extensions. Puis, sur la page d'accueil, remplacer le bloc HTML de l'iframe
- * par un bloc « Code court » contenant [hino_carrousel].
+ * Extensions. L'ancienne iframe `/vehicule/carrousel` de la page d'accueil est
+ * remplacée automatiquement (filtre the_content) dès que le JSON a répondu une
+ * fois; on peut aussi coller [hino_carrousel] dans un bloc « Code court ».
  *
  * Fonctionnement:
  *  - Le JSON est lu au plus une fois toutes les 5 minutes et gardé en option
@@ -36,6 +37,7 @@ final class Hino_Carrousel
 {
     const OPTION     = 'hino_carrousel_data';
     const LOCK       = 'hino_carrousel_refresh_lock';
+    const FAIL       = 'hino_carrousel_fetch_failed';
     const CRON_HOOK  = 'hino_carrousel_refresh';
     const DEFAULT_URL = 'https://feeds.hinochicoutimi.com/feeds/carrousel.json';
     const DEFAULT_TTL = 300;
@@ -47,6 +49,11 @@ final class Hino_Carrousel
     {
         add_shortcode('hino_carrousel', [self::class, 'shortcode']);
         add_action(self::CRON_HOOK, [self::class, 'refresh']);
+        // Remplace l'ancienne iframe du carrousel dans le contenu des pages,
+        // sans qu'on ait à éditer la page dans Gutenberg. Tant que le JSON n'a
+        // jamais répondu, l'iframe reste en place: on ne remplace jamais
+        // quelque chose qui marche par un bloc de repli.
+        add_filter('the_content', [self::class, 'replace_legacy_iframe'], 20);
         // WP-CLI / debug: `wp hino-carrousel refresh` n'existe pas, mais
         // ?hino_carrousel_refresh=1 en admin connecté force une lecture.
         add_action('admin_init', [self::class, 'maybe_force_refresh']);
@@ -148,15 +155,46 @@ final class Hino_Carrousel
             return $cached;
         }
 
-        // Jamais lue: seul cas où le visiteur attend, et pas plus de 4 s.
+        // Jamais lue: seul cas où le visiteur attend, et pas plus de 4 s — et
+        // pas plus d'une fois par TTL: un échec est mémorisé pour que les
+        // visiteurs suivants ne repaient pas l'attente tant que l'app est
+        // absente (ex.: mu-plugin installé avant le déploiement du JSON).
+        if (get_transient(self::FAIL)) {
+            return null;
+        }
         $fresh = self::fetch(self::TIMEOUT_SYNC);
         if ($fresh) {
             update_option(self::OPTION, $fresh, false);
+        } else {
+            set_transient(self::FAIL, 1, self::ttl());
         }
         return $fresh;
     }
 
     /* ---------------------------------------------------------- render */
+
+    /** Filtre the_content: l'iframe `/vehicule/carrousel` devient la bande native. */
+    public static function replace_legacy_iframe(string $content): string
+    {
+        if (is_admin() || stripos($content, 'vehicule/carrousel') === false) {
+            return $content;
+        }
+        $cached = get_option(self::OPTION);
+        if (!is_array($cached) || empty($cached['items'])) {
+            // Pas encore de données: on tente une lecture (bornée), et si ça
+            // échoue on laisse l'iframe telle quelle.
+            if (!self::data()) {
+                return $content;
+            }
+        }
+        $out = preg_replace(
+            '#<iframe\b[^>]*vehicule/carrousel[^>]*>\s*</iframe>#i',
+            self::shortcode(),
+            $content,
+            1
+        );
+        return is_string($out) ? $out : $content;
+    }
 
     public static function shortcode(): string
     {
