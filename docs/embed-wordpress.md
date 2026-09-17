@@ -60,7 +60,49 @@ d'injecter une hauteur. Ne pas le retirer.
 - Un clic sur une carte ouvre la fiche en **nouvel onglet**, hors iframe: le
   formulaire de contact s'utilise en pleine page.
 
-## Le carrousel de l'accueil (page 59)
+## Le carrousel de l'accueil (page 59) — shortcode, plus d'iframe
+
+**Historique.** La bande était une iframe vers `/vehicule/carrousel`, relayée
+par WordPress via `/stock/` (PHP → cURL → tunnel → app). Mesuré en prod le
+2026-09-16: ~0,8 s par requête, ~20 requêtes par affichage (HTML, chunks,
+fonts, images), et `loading="lazy"` qui ne démarrait le tout qu'une fois la
+section à l'écran. Résultat: 2,5 à 3 s de trou noir, que le visiteur dépassait
+avant que les camions apparaissent.
+
+**Maintenant.** L'app expose `/feeds/carrousel.json` (8 camions, titre et prix
+déjà formatés, photo Supabase, lien absolu). Un mu-plugin WordPress lit ce JSON
+au plus une fois toutes les 5 minutes et rend les cartes en HTML natif dans la
+page d'accueil. Pour le visiteur: zéro requête vers l'app, les cartes sont dans
+le HTML de la page, les photos partent en même temps que le reste.
+
+Installation:
+
+1. Copier `wordpress/mu-plugins/hino-carrousel.php` dans
+   `wp-content/mu-plugins/` (cPanel → File Manager; créer le dossier au
+   besoin). Actif d'office, rien à activer.
+2. Facultatif, dans `wp-config.php`:
+   `define('HINO_CARROUSEL_PHONE', '418 xxx-xxxx');` — affiché dans le bloc de
+   repli si l'app n'a jamais répondu.
+3. Page d'accueil → remplacer le bloc HTML de l'iframe par un bloc **Code
+   court** contenant `[hino_carrousel]`.
+4. Retirer le relais `/stock/` côté WordPress (plugin ou code du thème qui
+   proxie vers l'app): il ne sert plus à rien et chaque requête qui y tombe
+   démarre WordPress au complet.
+
+Comportement en panne: si l'app ne répond pas, WordPress garde la dernière copie
+valide indéfiniment — la page d'accueil ne montre jamais un trou. Un JSON vide
+ou invalide n'est jamais enregistré. Le rafraîchissement se fait par WP-Cron en
+arrière-plan; aucun visiteur n'attend l'app, sauf le tout premier affichage
+après installation (borné à 4 s). Admin connecté: `?hino_carrousel_refresh=1`
+force une relecture.
+
+Le rendu (bande 380 px, cartes 260 px, Oswald, rouge `#ed1c24`, flèches
+desktop, scroll-snap tactile) reprend `app/vehicule/carrousel`. Un changement
+de règle d'affichage (titre, prix) se fait dans `lib/catalog/carousel-json.ts`:
+le PHP imprime des chaînes, il ne formate rien.
+
+### Ancienne méthode (iframe), pour référence
+
 
 Bande des 8 camions les plus récents, à coller sous « des camions pour tous vos
 besoins », dans un bloc **HTML personnalisé**:
